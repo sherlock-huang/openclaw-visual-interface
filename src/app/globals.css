@@ -1,0 +1,52 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-bg: #0a0a0f;
+  --color-surface: #12121a;
+  --color-green: #00ff41;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-bg);
+  color: #ccccee;
+  font-family: 'Courier New', monospace;
+  overflow: hidden;
+}
+
+/* CRT scanline overlay */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.08) 2px,
+    rgba(0, 0, 0, 0.08) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #12121a; }
+::-webkit-scrollbar-thumb { background: #2a2a3f; }
+::-webkit-scrollbar-thumb:hover { background: #00ff41; }
+
+/* Selection */
+::selection { background: #00ff4133; color: #00ff41; }
+
+/* Pixel text rendering */
+.font-pixel { font-family: 'Press Start 2P', monospace; }
