@@ -1,7 +1,7 @@
 "use client";
 
 import { io, Socket } from "socket.io-client";
-import type { ServerToClientEvents, ClientToServerEvents } from "../types";
+import type { ServerToClientEvents, ClientToServerEvents, ExperienceTransfer } from "../types";
 import { useNetworkStore } from "./store";
 
 let socket: Socket<ServerToClientEvents, ClientToServerEvents> | null = null;
@@ -74,4 +74,8 @@ function bindEvents(s: Socket<ServerToClientEvents, ClientToServerEvents>) {
 
 export function sendMessage(msg: Parameters<ClientToServerEvents["message:send"]>[0]) {
   getSocket().emit("message:send", msg);
+}
+
+export function shareExperience(transfer: Omit<ExperienceTransfer, "id" | "createdAt">) {
+  getSocket().emit("experience:share", transfer);
 }
