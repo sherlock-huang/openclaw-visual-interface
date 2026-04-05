@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { clsx } from "clsx";
 import { connectSocket, disconnectSocket, shareExperience } from "../lib/socket";
 import { useNetworkStore } from "../lib/store";
@@ -465,16 +465,60 @@ function ExperiencePanel() {
   const [activeCategory, setActiveCategory] = useState("all");
   const [sortMode, setSortMode] = useState<SortMode>("date");
   const [transferTarget, setTransferTarget] = useState<{ expId: string; toId: string } | null>(null);
+  const [importStatus, setImportStatus] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const onlineAgents = agents.filter((a) => a.status !== "offline");
 
   // Fetch experiences
-  useEffect(() => {
+  const fetchExperiences = () => {
     fetch(`${serverUrl}/api/experiences`)
       .then((r) => r.json())
       .then((rows: ExpRow[]) => setExperiences(rows))
       .catch(() => {});
-  }, [serverUrl]);
+  };
+
+  useEffect(() => { fetchExperiences(); }, [serverUrl]);
+
+  // Export: trigger download via anchor
+  function handleExport() {
+    const a = document.createElement("a");
+    a.href = `${serverUrl}/api/experiences/export`;
+    a.download = "openclaw-experiences.json";
+    a.click();
+  }
+
+  // Import: parse JSON file and POST each experience
+  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportStatus("IMPORTING…");
+    try {
+      const text = await file.text();
+      const rows = JSON.parse(text) as ExpRow[];
+      let ok = 0;
+      for (const row of rows) {
+        const res = await fetch(`${serverUrl}/api/experiences`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            agentId: row.agent_id,
+            category: row.category,
+            content: row.content,
+            tags: parseTags(row.tags),
+            confidence: row.confidence,
+          }),
+        });
+        if (res.ok) ok++;
+      }
+      setImportStatus(`✓ ${ok}/${rows.length} IMPORTED`);
+      fetchExperiences();
+    } catch {
+      setImportStatus("✗ IMPORT FAILED");
+    }
+    setTimeout(() => setImportStatus(null), 3000);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
 
   // Unique categories
   const categories = useMemo(() => {
@@ -529,8 +573,8 @@ function ExperiencePanel() {
           className="bg-pixel-bg border border-pixel-border text-pixel-green font-pixel text-[8px] px-2 py-1 w-32 placeholder:text-pixel-gray outline-none focus:border-pixel-green ml-2"
         />
 
-        {/* Sort */}
-        <div className="flex gap-1 ml-auto items-center">
+        {/* Sort + Export/Import */}
+        <div className="flex gap-1 ml-auto items-center flex-wrap">
           <span className="font-pixel text-[7px] text-pixel-gray">SORT:</span>
           {(["date", "confidence", "usage"] as SortMode[]).map((s) => (
             <button
@@ -546,6 +590,44 @@ function ExperiencePanel() {
               {s.toUpperCase()}
             </button>
           ))}
+
+          {/* Divider */}
+          <span className="text-pixel-border mx-1">|</span>
+
+          {/* Export */}
+          <button
+            onClick={handleExport}
+            className="font-pixel text-[7px] px-2 py-1 border border-pixel-cyan text-pixel-cyan hover:bg-[#00ffff22] transition-colors"
+            title="Download all experiences as JSON"
+          >
+            ↓ EXPORT
+          </button>
+
+          {/* Import */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="font-pixel text-[7px] px-2 py-1 border border-pixel-orange text-pixel-orange hover:bg-[#ff8c0022] transition-colors"
+            title="Import experiences from JSON file"
+          >
+            ↑ IMPORT
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={handleImport}
+          />
+
+          {/* Import status feedback */}
+          {importStatus && (
+            <span className={clsx(
+              "font-pixel text-[7px] px-2",
+              importStatus.startsWith("✓") ? "text-pixel-green" : importStatus.startsWith("✗") ? "text-pixel-red" : "text-pixel-gray"
+            )}>
+              {importStatus}
+            </span>
+          )}
         </div>
 
         <span className="font-pixel text-[7px] text-pixel-gray">{displayed.length} ENTRIES</span>
