@@ -52,7 +52,7 @@ type StatusHandler = (connected: boolean) => void;
 export class OpenClawClient {
   readonly id: string;
   private socket: Socket<ServerToClientEvents, ClientToServerEvents> | null = null;
-  private opts: Required<OpenClawClientOptions>;
+  private opts: Required<Omit<OpenClawClientOptions, "agentId">> & { agentId: string };
   private messageHandlers: MessageHandler[] = [];
   private experienceHandlers: ExperienceHandler[] = [];
   private statusHandlers: StatusHandler[] = [];
