@@ -42,7 +42,7 @@ export const useNetworkStore = create<NetworkState & NetworkActions>((set) => ({
   selectedAgentId: null,
   filterStatus: "all",
   isConnected: false,
-  serverUrl: "http://localhost:3211",
+  serverUrl: process.env.NEXT_PUBLIC_SERVER_URL ?? "http://localhost:3211",
   stats: { activeAgents: 0, totalMessages: 0, totalExperiences: 0, completedTransfers: 0, activeLinks: 0 },
 
   setAgents: (agents) => set({ agents }),

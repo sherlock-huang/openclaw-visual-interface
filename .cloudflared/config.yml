@@ -1,0 +1,13 @@
+# Cloudflare Tunnel 配置
+# 使用前需先执行: cloudflared login && cloudflared tunnel create openclaw-api
+# 然后把生成的 tunnel ID 填入下面
+
+tunnel: openclaw-api
+credentials-file: ~/.cloudflared/<TUNNEL-ID>.json
+
+ingress:
+  - hostname: openclaw-api.kunpeng-ai.com
+    service: http://localhost:3211
+    originRequest:
+      noTLSVerify: false
+  - service: http_status:404

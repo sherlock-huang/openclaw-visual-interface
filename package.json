@@ -12,7 +12,9 @@
     "start": "next start -p 3210",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
-    "demo": "tsx scripts/demo-agents.ts"
+    "demo": "tsx scripts/demo-agents.ts",
+    "tunnel": "powershell -File scripts/start-tunnel.ps1",
+    "tunnel:quick": "cloudflared tunnel --url http://localhost:3211"
   },
   "dependencies": {
     "better-sqlite3": "^11.7.0",
