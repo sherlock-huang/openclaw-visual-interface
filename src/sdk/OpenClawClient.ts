@@ -69,6 +69,7 @@ export class OpenClawClient {
       capabilities: [],
       metadata: {},
       heartbeatInterval: 15000,
+      agentId: this.id,
       ...opts,
       name: opts.name,
     };
