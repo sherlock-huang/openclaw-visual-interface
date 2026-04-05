@@ -111,10 +111,10 @@ export function Dashboard() {
         </div>
 
         <div className="flex gap-0 ml-auto">
-          <StatBox label="ONLINE"    value={onlineAgents.length}       color="text-pixel-green"  />
-          <StatBox label="MSGS"      value={stats.totalMessages}        color="text-pixel-cyan"   />
-          <StatBox label="XP"        value={stats.totalExperiences}     color="text-pixel-purple" />
-          <StatBox label="TRANSFERS" value={stats.completedTransfers}   color="text-pixel-orange" />
+          <StatBox label="ONLINE" value={onlineAgents.length}     color="text-pixel-green"  />
+          <StatBox label="MSGS"   value={stats.totalMessages}     color="text-pixel-cyan"   />
+          <StatBox label="LINKS"  value={stats.activeLinks}       color="text-pixel-yellow" />
+          <StatBox label="XP"     value={stats.totalExperiences}  color="text-pixel-purple" />
         </div>
       </header>
 

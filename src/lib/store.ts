@@ -15,6 +15,7 @@ interface NetworkState {
     totalMessages: number;
     totalExperiences: number;
     completedTransfers: number;
+    activeLinks: number;
   };
 }
 
@@ -42,7 +43,7 @@ export const useNetworkStore = create<NetworkState & NetworkActions>((set) => ({
   filterStatus: "all",
   isConnected: false,
   serverUrl: "http://localhost:3211",
-  stats: { activeAgents: 0, totalMessages: 0, totalExperiences: 0, completedTransfers: 0 },
+  stats: { activeAgents: 0, totalMessages: 0, totalExperiences: 0, completedTransfers: 0, activeLinks: 0 },
 
   setAgents: (agents) => set({ agents }),
   upsertAgent: (agent) =>

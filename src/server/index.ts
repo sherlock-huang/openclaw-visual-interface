@@ -107,7 +107,8 @@ app.get("/api/stats", (_req, res) => {
   const msgCount = (db.prepare("SELECT COUNT(*) as c FROM messages").get() as { c: number }).c;
   const expCount = (db.prepare("SELECT COUNT(*) as c FROM experiences").get() as { c: number }).c;
   const transferCount = (db.prepare("SELECT COUNT(*) as c FROM experience_transfers WHERE accepted = 1").get() as { c: number }).c;
-  res.json({ activeAgents: agentCount, totalMessages: msgCount, totalExperiences: expCount, completedTransfers: transferCount });
+  const linkCount = (db.prepare("SELECT COUNT(*) as c FROM (SELECT DISTINCT from_id, to_id FROM messages WHERE to_id != 'broadcast')").get() as { c: number }).c;
+  res.json({ activeAgents: agentCount, totalMessages: msgCount, totalExperiences: expCount, completedTransfers: transferCount, activeLinks: linkCount });
 });
 
 // ── Socket.io ─────────────────────────────────────────────
