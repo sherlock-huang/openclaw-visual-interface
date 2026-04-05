@@ -186,9 +186,33 @@ export function Dashboard() {
 }
 
 // ── Agent Detail Side Panel ───────────────────────────────────
+const typeIcons: Record<string, string> = {
+  chat: "💬", task: "📋", result: "✅", experience: "🧠",
+  broadcast: "📡", error: "❌", join: "🚪", leave: "👋", sync: "🔄",
+};
+
 function AgentDetailPanel() {
-  const { agents, selectedAgentId } = useNetworkStore();
+  const { agents, selectedAgentId, serverUrl } = useNetworkStore();
   const agent = agents.find((a) => a.id === selectedAgentId);
+  const [panel, setPanel] = useState<"info" | "msgs" | "xp">("info");
+  const [agentMsgs, setAgentMsgs] = useState<Record<string, unknown>[]>([]);
+  const [agentXp, setAgentXp] = useState<ExpRow[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!agent) return;
+    setLoading(true);
+    Promise.all([
+      fetch(`${serverUrl}/api/agents/${agent.id}/messages`).then((r) => r.json()),
+      fetch(`${serverUrl}/api/experiences?agentId=${agent.id}`).then((r) => r.json()),
+    ])
+      .then(([msgs, xp]) => {
+        setAgentMsgs((msgs as Record<string, unknown>[]).slice(0, 50).reverse());
+        setAgentXp(xp as ExpRow[]);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [agent?.id, serverUrl]);
 
   if (!agent) {
     return (
@@ -201,39 +225,123 @@ function AgentDetailPanel() {
   }
 
   return (
-    <div className="w-64 border-l border-pixel-border bg-pixel-surface overflow-y-auto">
-      <div className="p-4">
-        <AgentCard agent={agent} />
+    <div className="w-64 border-l border-pixel-border bg-pixel-surface flex flex-col overflow-hidden">
+      {/* Mini tabs */}
+      <div className="flex border-b border-pixel-border flex-shrink-0">
+        {(["info", "msgs", "xp"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setPanel(t)}
+            className={clsx(
+              "flex-1 font-pixel text-[7px] py-1.5 border-r border-pixel-border transition-colors",
+              panel === t ? "text-pixel-green bg-pixel-bg" : "text-pixel-gray hover:text-pixel-green"
+            )}
+          >
+            {t === "info" ? "INFO" : t === "msgs" ? "MSGS" : "XP"}
+          </button>
+        ))}
+      </div>
 
-        <div className="mt-3 space-y-2">
-          <div className="font-pixel text-[8px] text-pixel-gray border-b border-pixel-border pb-1">
-            CAPABILITIES
-          </div>
-          {agent.capabilities.length === 0 ? (
-            <p className="font-pixel text-[7px] text-pixel-gray">None reported</p>
-          ) : (
-            agent.capabilities.map((cap) => (
-              <div key={cap.name} className="flex justify-between items-center">
-                <span className="font-pixel text-[7px] text-white">{cap.name}</span>
-                <div className="flex items-center gap-1">
-                  <div className="w-16 h-2 bg-pixel-border">
-                    <div className="h-full bg-pixel-cyan" style={{ width: `${cap.level}%` }} />
+      <div className="flex-1 overflow-y-auto p-3">
+        {loading && (
+          <p className="font-pixel text-[7px] text-pixel-gray text-center py-4">LOADING…</p>
+        )}
+
+        {/* ── INFO ── */}
+        {!loading && panel === "info" && (
+          <>
+            <AgentCard agent={agent} />
+            <div className="mt-3 space-y-2">
+              <div className="font-pixel text-[8px] text-pixel-gray border-b border-pixel-border pb-1">
+                CAPABILITIES
+              </div>
+              {agent.capabilities.length === 0 ? (
+                <p className="font-pixel text-[7px] text-pixel-gray">None reported</p>
+              ) : (
+                agent.capabilities.map((cap) => (
+                  <div key={cap.name} className="flex justify-between items-center">
+                    <span className="font-pixel text-[7px] text-white">{cap.name}</span>
+                    <div className="flex items-center gap-1">
+                      <div className="w-16 h-2 bg-pixel-border">
+                        <div className="h-full bg-pixel-cyan" style={{ width: `${cap.level}%` }} />
+                      </div>
+                      <span className="font-pixel text-[7px] text-pixel-cyan">{cap.level}</span>
+                    </div>
                   </div>
-                  <span className="font-pixel text-[7px] text-pixel-cyan">{cap.level}</span>
+                ))
+              )}
+            </div>
+            <div className="mt-3 text-[8px] font-mono text-pixel-gray space-y-1">
+              <div>ID: <span className="text-pixel-green">{agent.id.slice(0, 12)}…</span></div>
+              <div>HOST: <span className="text-pixel-cyan">{agent.host}:{agent.port}</span></div>
+              <div>VER: <span className="text-pixel-green">{agent.version}</span></div>
+              <div>MSGS: <span className="text-pixel-orange">{agent.totalMessages}</span></div>
+              <div>XP: <span className="text-pixel-purple">{agent.totalExperiences}</span></div>
+              <div>SEEN: <span className="text-pixel-green">{new Date(agent.lastSeenAt).toLocaleTimeString()}</span></div>
+            </div>
+          </>
+        )}
+
+        {/* ── MSGS ── */}
+        {!loading && panel === "msgs" && (
+          <div className="space-y-1">
+            {agentMsgs.length === 0 && (
+              <p className="font-pixel text-[7px] text-pixel-gray text-center py-6">NO MESSAGES</p>
+            )}
+            {agentMsgs.map((m) => {
+              const fromId = (m.from_id ?? m.fromId) as string;
+              const toId   = (m.to_id ?? m.toId) as string;
+              const dir    = fromId === agent.id ? "out" : "in";
+              return (
+                <div key={m.id as string} className="text-[9px] font-mono border-b border-pixel-border/40 pb-1">
+                  <div className="flex items-center gap-1 mb-0.5">
+                    <span className="text-[10px]">{typeIcons[m.type as string] ?? "●"}</span>
+                    <span className={dir === "out" ? "text-pixel-cyan" : "text-pixel-yellow"}>
+                      {dir === "out" ? "▶ OUT" : "◀ IN "}
+                    </span>
+                    <span className="text-pixel-gray ml-auto tabular-nums">
+                      {new Date(m.created_at as string).toLocaleTimeString("en", { hour12: false, hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                  <p className="text-white truncate">{m.content as string}</p>
+                  <p className="text-pixel-gray text-[8px]">
+                    {dir === "out" ? `→ ${toId.slice(0, 10)}` : `← ${fromId.slice(0, 10)}`}
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ── XP ── */}
+        {!loading && panel === "xp" && (
+          <div className="space-y-2">
+            {agentXp.length === 0 && (
+              <p className="font-pixel text-[7px] text-pixel-gray text-center py-6">NO EXPERIENCES</p>
+            )}
+            {agentXp.map((xp) => (
+              <div key={xp.id} className="border border-pixel-border p-2 bg-pixel-bg">
+                <div className="flex items-center gap-1 mb-1">
+                  <span className="font-pixel text-[6px] px-1 border border-pixel-border text-pixel-cyan">
+                    {xp.category}
+                  </span>
+                  <span className="font-pixel text-[7px] text-pixel-gray ml-auto">×{xp.usage_count}</span>
+                </div>
+                <p className="text-[9px] text-white font-mono line-clamp-3">{xp.content}</p>
+                <div className="mt-1 flex gap-1 flex-wrap">
+                  {parseTags(xp.tags).map((tag) => (
+                    <span key={tag} className="font-pixel text-[6px] text-pixel-purple border border-pixel-border/60 px-1">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+                <div className="mt-1 h-1 bg-pixel-border">
+                  <div className="h-full bg-pixel-purple" style={{ width: `${xp.confidence}%` }} />
                 </div>
               </div>
-            ))
-          )}
-        </div>
-
-        <div className="mt-3 text-[8px] font-mono text-pixel-gray space-y-1">
-          <div>ID: <span className="text-pixel-green">{agent.id.slice(0, 12)}…</span></div>
-          <div>HOST: <span className="text-pixel-cyan">{agent.host}:{agent.port}</span></div>
-          <div>VERSION: <span className="text-pixel-green">{agent.version}</span></div>
-          <div>MSGS: <span className="text-pixel-orange">{agent.totalMessages}</span></div>
-          <div>XP: <span className="text-pixel-purple">{agent.totalExperiences}</span></div>
-          <div>LAST SEEN: <span className="text-pixel-green">{new Date(agent.lastSeenAt).toLocaleTimeString()}</span></div>
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
