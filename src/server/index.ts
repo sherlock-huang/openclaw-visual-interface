@@ -42,10 +42,31 @@ app.get("/api/agents/:id/messages", (req, res) => {
   res.json(msgs);
 });
 
-app.get("/api/messages", (_req, res) => {
+app.get("/api/messages", (req, res) => {
   const db = getDb();
-  const msgs = db.prepare("SELECT * FROM messages ORDER BY created_at DESC LIMIT 500").all();
-  res.json(msgs);
+  const limit = Math.min(parseInt((req.query.limit as string) || "100", 10), 500);
+  const offset = parseInt((req.query.offset as string) || "0", 10);
+  const type = (req.query.type as string) || "";
+  const search = (req.query.search as string) || "";
+
+  let sql = "SELECT * FROM messages WHERE 1=1";
+  const params: (string | number)[] = [];
+
+  if (type && type !== "all") {
+    sql += " AND type = ?";
+    params.push(type);
+  }
+  if (search) {
+    sql += " AND (content LIKE ? OR from_id LIKE ? OR to_id LIKE ?)";
+    const q = `%${search}%`;
+    params.push(q, q, q);
+  }
+  sql += " ORDER BY created_at DESC LIMIT ? OFFSET ?";
+  params.push(limit, offset);
+
+  const msgs = db.prepare(sql).all(...params);
+  const total = (db.prepare("SELECT COUNT(*) as c FROM messages").get() as { c: number }).c;
+  res.json({ data: msgs, total, limit, offset });
 });
 
 app.get("/api/experiences", (req, res) => {
@@ -67,6 +88,13 @@ app.post("/api/experiences", (req, res) => {
     VALUES (?, ?, ?, ?, ?, ?, 0, ?, ?)
   `).run(id, agentId, category, content, JSON.stringify(tags), confidence, now, now);
   res.json({ id });
+});
+
+app.get("/api/experiences/export", (_req, res) => {
+  const db = getDb();
+  const rows = db.prepare("SELECT * FROM experiences ORDER BY created_at DESC").all();
+  res.setHeader("Content-Disposition", "attachment; filename=openclaw-experiences.json");
+  res.json(rows);
 });
 
 app.get("/api/network", (_req, res) => {
@@ -158,6 +186,12 @@ io.on("connection", (socket) => {
       transfer.accepted ? 1 : 0,
       transfer.reason ?? null, now
     );
+
+    // increment usage_count for each transferred experience
+    const incr = db.prepare("UPDATE experiences SET usage_count = usage_count + 1, updated_at = ? WHERE id = ?");
+    for (const expId of transfer.experienceIds) {
+      incr.run(now, expId);
+    }
 
     const fullTransfer = { ...transfer, id, createdAt: now };
     const targetSocket = getSocketId(transfer.toId);
