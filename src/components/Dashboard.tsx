@@ -50,10 +50,40 @@ function EmptyState({ icon, message, sub }: { icon: string; message: string; sub
 }
 
 // ── Main Dashboard ────────────────────────────────────────────
+type CRTTheme = "green" | "amber" | "blue";
+
+const THEMES: { id: CRTTheme; label: string; color: string }[] = [
+  { id: "green", label: "●", color: "text-pixel-green"  },
+  { id: "amber", label: "●", color: "text-pixel-orange" },
+  { id: "blue",  label: "●", color: "text-pixel-blue"   },
+];
+
 export function Dashboard() {
   const { agents, isConnected, serverUrl, setServerUrl, stats, setStats } = useNetworkStore();
   const [serverInput, setServerInput] = useState(serverUrl);
   const [activeTab, setActiveTab] = useState<"graph" | "agents" | "messages" | "experience">("graph");
+  const [theme, setTheme] = useState<CRTTheme>("green");
+
+  // Load saved theme on mount
+  useEffect(() => {
+    const saved = (localStorage.getItem("crt-theme") ?? "green") as CRTTheme;
+    applyTheme(saved);
+    setTheme(saved);
+  }, []);
+
+  function applyTheme(t: CRTTheme) {
+    if (t === "green") {
+      document.documentElement.removeAttribute("data-theme");
+    } else {
+      document.documentElement.setAttribute("data-theme", t);
+    }
+    localStorage.setItem("crt-theme", t);
+  }
+
+  function handleTheme(t: CRTTheme) {
+    setTheme(t);
+    applyTheme(t);
+  }
 
   useEffect(() => {
     connectSocket(serverUrl);
@@ -108,6 +138,24 @@ export function Dashboard() {
           <PixelButton variant={isConnected ? "ghost" : "primary"} onClick={handleConnect} className="py-1">
             {isConnected ? "RECONNECT" : "CONNECT"}
           </PixelButton>
+        </div>
+
+        {/* CRT Theme switcher */}
+        <div className="flex items-center gap-1 mr-2" title="CRT Theme">
+          {THEMES.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => handleTheme(t.id)}
+              title={t.id.toUpperCase()}
+              className={clsx(
+                "text-[16px] leading-none transition-opacity",
+                t.color,
+                theme === t.id ? "opacity-100" : "opacity-30 hover:opacity-60"
+              )}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
 
         <div className="flex gap-0 ml-auto">
