@@ -5,6 +5,8 @@ import * as d3 from "d3";
 import type { AgentNode, AgentLink } from "../../types";
 import { useNetworkStore } from "../../lib/store";
 
+const SERVER = process.env.NEXT_PUBLIC_SERVER_URL ?? "http://localhost:3211";
+
 const STATUS_COLOR: Record<string, string> = {
   active:  "#00ff41",
   idle:    "#ffff00",
@@ -27,6 +29,7 @@ function nodeHalf(d: AgentNode): number {
 
 export function NetworkGraph() {
   const svgRef = useRef<SVGSVGElement>(null);
+  const tipRef = useRef<HTMLDivElement>(null);
   const { agents, links, selectedAgentId, selectAgent } = useNetworkStore();
 
   const draw = useCallback(() => {
@@ -62,6 +65,18 @@ export function NetworkGraph() {
       source: typeof l.source === "string" ? l.source : (l.source as AgentNode).id,
       target: typeof l.target === "string" ? l.target : (l.target as AgentNode).id,
     }));
+
+    // ── Neighbors of selected node ────────────────────────────
+    const neighborIds = new Set<string>();
+    if (selectedAgentId) {
+      neighborIds.add(selectedAgentId);
+      for (const l of resolvedLinks) {
+        const s = typeof l.source === "string" ? l.source : (l.source as unknown as AgentNode).id;
+        const t = typeof l.target === "string" ? l.target : (l.target as unknown as AgentNode).id;
+        if (s === selectedAgentId) neighborIds.add(t);
+        if (t === selectedAgentId) neighborIds.add(s);
+      }
+    }
 
     // ── Host-cluster custom force ──────────────────────────────
     function clusterForce(alpha: number) {
@@ -104,14 +119,21 @@ export function NetworkGraph() {
       .force("cluster", clusterForce as unknown as d3.Force<AgentNode, AgentLink>);
 
     // ── Links ─────────────────────────────────────────────────
+    const isLinkActive = (d: typeof resolvedLinks[0]) => {
+      if (!selectedAgentId) return false;
+      const s = typeof d.source === "string" ? d.source : (d.source as unknown as AgentNode).id;
+      const t = typeof d.target === "string" ? d.target : (d.target as unknown as AgentNode).id;
+      return s === selectedAgentId || t === selectedAgentId;
+    };
+
     const linkLines = g
       .append("g")
       .selectAll<SVGLineElement, typeof resolvedLinks[0]>("line")
       .data(resolvedLinks)
       .join("line")
-      .attr("stroke", "#2a2a3f")
-      .attr("stroke-width", (d) => Math.max(1, (d as unknown as AgentLink).strength * 4))
-      .attr("stroke-opacity", 0.7);
+      .attr("stroke", (d) => isLinkActive(d) ? "#00ff41" : "#2a2a3f")
+      .attr("stroke-width", (d) => isLinkActive(d) ? Math.max(2, (d as unknown as AgentLink).strength * 5) : Math.max(1, (d as unknown as AgentLink).strength * 4))
+      .attr("stroke-opacity", (d) => selectedAgentId ? (isLinkActive(d) ? 1 : 0.12) : 0.7);
 
     // ── Flow particles (3 per active link, staggered) ─────────
     interface Particle {
@@ -163,7 +185,34 @@ export function NetworkGraph() {
             d.fy = null;
           })
       )
-      .on("click", (_ev, d) => selectAgent(d.id === selectedAgentId ? null : d.id));
+      .on("click", (_ev, d) => selectAgent(d.id === selectedAgentId ? null : d.id))
+      .on("mouseover", (ev: MouseEvent, d: AgentNode) => {
+        if (!tipRef.current) return;
+        const tip = tipRef.current;
+        tip.innerHTML = [
+          `<span style="color:#00ff41;font-size:9px">${d.name}</span>`,
+          `<span style="color:#888">${d.host}:${d.port}</span>`,
+          `<span style="color:#00ffff">MSG: ${d.totalMessages}</span>`,
+          `<span style="color:#cc44ff">XP: ${d.totalExperiences}</span>`,
+          `<span style="color:${STATUS_COLOR[d.status]}">${d.status.toUpperCase()}</span>`,
+        ].join("<br/>");
+        tip.style.display = "block";
+        tip.style.left = `${ev.offsetX + 14}px`;
+        tip.style.top  = `${ev.offsetY - 10}px`;
+      })
+      .on("mousemove", (ev: MouseEvent) => {
+        if (!tipRef.current) return;
+        tipRef.current.style.left = `${ev.offsetX + 14}px`;
+        tipRef.current.style.top  = `${ev.offsetY - 10}px`;
+      })
+      .on("mouseout", () => {
+        if (tipRef.current) tipRef.current.style.display = "none";
+      });
+
+    // Dim non-neighbor nodes
+    nodeG.attr("opacity", (d) =>
+      !selectedAgentId || neighborIds.has(d.id) ? 1 : 0.2
+    );
 
     // Selection ring
     nodeG
@@ -264,10 +313,18 @@ export function NetworkGraph() {
   }, [draw]);
 
   return (
-    <svg
-      ref={svgRef}
-      className="w-full h-full bg-pixel-bg"
-      style={{ minHeight: "400px" }}
-    />
+    <div className="relative w-full h-full">
+      <svg
+        ref={svgRef}
+        className="w-full h-full bg-pixel-bg"
+        style={{ minHeight: "400px" }}
+      />
+      {/* Hover tooltip */}
+      <div
+        ref={tipRef}
+        style={{ display: "none", position: "absolute", pointerEvents: "none" }}
+        className="bg-pixel-surface border border-pixel-border px-2 py-1.5 font-mono text-[9px] leading-relaxed z-10 shadow-lg"
+      />
+    </div>
   );
 }
