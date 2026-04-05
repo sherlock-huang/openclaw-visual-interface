@@ -41,8 +41,9 @@ export interface OpenClawClientOptions {
   port?: number;
   capabilities?: AgentCapability[];
   metadata?: Record<string, unknown>;
-  agentId?: string;  // 指定固定 ID，方便重连后恢复
-  heartbeatInterval?: number;  // ms, default 15000
+  agentId?: string;         // 指定固定 ID，方便重连后恢复
+  heartbeatInterval?: number; // ms, default 15000
+  maxRetries?: number;      // reconnect attempts, default Infinity
 }
 
 type MessageHandler = (msg: Message) => void;
@@ -70,6 +71,7 @@ export class OpenClawClient {
       capabilities: [],
       metadata: {},
       heartbeatInterval: 15000,
+      maxRetries: Infinity,
       ...opts,
       agentId: this.id,
       name: opts.name,
@@ -78,14 +80,27 @@ export class OpenClawClient {
 
   async connect(): Promise<void> {
     return new Promise((resolve, reject) => {
+      // Disconnect existing socket if reconnecting manually
+      if (this.socket) {
+        this.socket.removeAllListeners();
+        this.socket.disconnect();
+      }
+
       const s = io(this.opts.serverUrl, {
         transports: ["websocket"],
         autoConnect: false,
+        // Built-in exponential backoff: 1s → 2s → 4s → … → 30s
+        reconnection: true,
+        reconnectionAttempts: this.opts.maxRetries,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 30000,
+        randomizationFactor: 0.3,
       }) as Socket<ServerToClientEvents, ClientToServerEvents>;
 
       this.socket = s;
+      let resolved = false;
 
-      s.on("connect", () => {
+      const register = () => {
         const agentData: Omit<Agent, "createdAt" | "lastSeenAt" | "totalMessages" | "totalExperiences"> = {
           id: this.id,
           name: this.opts.name,
@@ -99,18 +114,20 @@ export class OpenClawClient {
           metadata: this.opts.metadata,
           connectedTo: [],
         };
-
         s.emit("agent:register", agentData, (success, agentId) => {
           if (success) {
             console.log(`[OpenClaw] Registered as "${this.opts.name}" (${agentId})`);
             this.startHeartbeat();
             this.statusHandlers.forEach((h) => h(true));
-            resolve();
-          } else {
+            if (!resolved) { resolved = true; resolve(); }
+          } else if (!resolved) {
+            resolved = true;
             reject(new Error("Failed to register agent"));
           }
         });
-      });
+      };
+
+      s.on("connect", register);
 
       s.on("message:received", (msg) => {
         this.messageHandlers.forEach((h) => h(msg));
@@ -120,13 +137,31 @@ export class OpenClawClient {
         this.experienceHandlers.forEach((h) => h(transfer));
       });
 
-      s.on("disconnect", () => {
-        this.statusHandlers.forEach((h) => h(false));
+      s.on("disconnect", (reason) => {
         this.stopHeartbeat();
+        this.statusHandlers.forEach((h) => h(false));
+        // "io client disconnect" = intentional; other reasons trigger auto-reconnect
+        if (reason === "io client disconnect") return;
+        console.log(`[OpenClaw] Disconnected (${reason}), reconnecting…`);
       });
 
-      s.on("error", (err) => {
-        console.error("[OpenClaw] Error:", err);
+      // socket.io manager-level events (reconnect lifecycle)
+      s.io.on("reconnect_attempt", (attempt: number) => {
+        const delay = Math.min(1000 * 2 ** (attempt - 1), 30000);
+        console.log(`[OpenClaw] Reconnect attempt ${attempt} (delay ${delay}ms)`);
+      });
+
+      s.io.on("reconnect", () => {
+        console.log("[OpenClaw] Reconnected successfully");
+      });
+
+      s.io.on("reconnect_failed", () => {
+        console.error("[OpenClaw] All reconnect attempts failed");
+        this.statusHandlers.forEach((h) => h(false));
+      });
+
+      s.on("connect_error", (err) => {
+        console.warn("[OpenClaw] Connect error:", err.message);
       });
 
       s.connect();
