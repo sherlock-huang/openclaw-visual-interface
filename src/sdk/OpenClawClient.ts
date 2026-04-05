@@ -52,7 +52,7 @@ type StatusHandler = (connected: boolean) => void;
 export class OpenClawClient {
   readonly id: string;
   private socket: Socket<ServerToClientEvents, ClientToServerEvents> | null = null;
-  private opts: Required<Omit<OpenClawClientOptions, "agentId">> & { agentId: string };
+  private opts: Required<OpenClawClientOptions>;
   private messageHandlers: MessageHandler[] = [];
   private experienceHandlers: ExperienceHandler[] = [];
   private statusHandlers: StatusHandler[] = [];
@@ -60,6 +60,7 @@ export class OpenClawClient {
 
   constructor(opts: OpenClawClientOptions) {
     this.id = opts.agentId || uuidv4();
+    // eslint-disable-next-line @typescript-eslint/consistent-type-assertions
     this.opts = {
       serverUrl: "http://localhost:3211",
       role: "worker",
@@ -70,9 +71,9 @@ export class OpenClawClient {
       metadata: {},
       heartbeatInterval: 15000,
       ...opts,
-      agentId: this.id,   // always string, must be after ...opts
+      agentId: this.id,
       name: opts.name,
-    };
+    } as Required<OpenClawClientOptions>;
   }
 
   async connect(): Promise<void> {
