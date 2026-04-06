@@ -1,0 +1,7 @@
+{
+  "portalUrl": "https://openclaw-api.kunpeng-ai.com",
+  "agentName": "",
+  "agentRole": "worker",
+  "capabilities": [],
+  "autoStart": true
+}
