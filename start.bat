@@ -44,11 +44,13 @@ if not errorlevel 1 (
 )
 echo  [OK] 端口 3211 可用
 
+set SKIP_WEB=0
 netstat -ano | findstr ":3210 " | findstr "LISTENING" >nul 2>&1
 if not errorlevel 1 (
     echo  [警告] 端口 3210 已被占用，将跳过本地前端
     echo  请直接访问 Cloudflare Pages 界面
     echo.
+    set SKIP_WEB=1
 )
 
 :: ── 3. 安装依赖 ───────────────────────────────────────────
@@ -140,6 +142,12 @@ goto :open_browser
 echo  [OK] 服务器已就绪（端口 3211）
 
 :open_browser
+if "%SKIP_WEB%"=="1" (
+    echo  [提示] 跳过本地前端（端口 3210 已占用）
+    echo  请访问：https://openclaw-visual-interface.pages.dev
+    start https://openclaw-visual-interface.pages.dev
+    goto :done
+)
 if exist node_modules\next (
     echo  [启动] 本地前端界面（端口 3210）...
     start "OpenClaw-Web" cmd /k "title OpenClaw Web && node_modules\.bin\next dev -p 3210"
@@ -151,6 +159,7 @@ if exist node_modules\next (
     start https://openclaw-visual-interface.pages.dev
 )
 
+:done
 echo.
 echo  ==========================================
 echo   OpenClaw 已启动！
