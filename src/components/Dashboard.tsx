@@ -50,6 +50,61 @@ function EmptyState({ icon, message, sub }: { icon: string; message: string; sub
 }
 
 // ── Main Dashboard ────────────────────────────────────────────
+// ── Connection Guide（未连接时的引导页）────────────────────
+const QUICK_URLS = [
+  { label: "本机（默认）",     url: "http://localhost:3211" },
+  { label: "固定隧道",         url: "https://openclaw-api.kunpeng-ai.com" },
+];
+
+function ConnectionGuide({ serverUrl, onConnect }: { serverUrl: string; onConnect: (url: string) => void }) {
+  const [custom, setCustom] = useState(serverUrl);
+  return (
+    <div className="absolute inset-0 flex items-center justify-center bg-pixel-bg/95 z-10">
+      <div className="w-full max-w-md px-6 text-center">
+        <LobsterSprite status="offline" size={56} className="mx-auto mb-4" />
+        <p className="font-pixel text-[11px] text-pixel-red mb-1">未连接到服务器</p>
+        <p className="font-pixel text-[7px] text-pixel-gray mb-6">请先启动 OpenClaw Server，然后点击下方连接</p>
+
+        {/* 快速连接 */}
+        <div className="space-y-2 mb-4">
+          {QUICK_URLS.map((q) => (
+            <button
+              key={q.url}
+              onClick={() => onConnect(q.url)}
+              className="w-full flex items-center justify-between px-3 py-2 border border-pixel-border hover:border-pixel-green hover:bg-[#00ff4111] transition-colors group"
+            >
+              <span className="font-pixel text-[7px] text-pixel-gray group-hover:text-pixel-green">{q.label}</span>
+              <span className="font-mono text-[9px] text-pixel-cyan">{q.url}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* 自定义地址 */}
+        <div className="flex gap-2 mt-4">
+          <input
+            value={custom}
+            onChange={(e) => setCustom(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && onConnect(custom)}
+            placeholder="自定义地址，如 http://192.168.1.100:3211"
+            className="flex-1 bg-pixel-surface border border-pixel-border text-pixel-cyan font-mono text-[9px] px-2 py-1.5 outline-none focus:border-pixel-cyan placeholder:text-pixel-gray/50"
+          />
+          <button
+            onClick={() => onConnect(custom)}
+            className="font-pixel text-[7px] px-3 py-1.5 bg-pixel-green text-black hover:bg-[#00cc33] transition-colors"
+          >
+            连接
+          </button>
+        </div>
+
+        <p className="font-pixel text-[6px] text-pixel-gray mt-5 leading-loose">
+          本机启动：双击 start.bat<br/>
+          公网隧道：双击 start-tunnel.bat
+        </p>
+      </div>
+    </div>
+  );
+}
+
 type CRTTheme = "green" | "amber" | "blue";
 
 const THEMES: { id: CRTTheme; label: string; color: string }[] = [
@@ -85,8 +140,33 @@ export function Dashboard() {
     applyTheme(t);
   }
 
+  // Auto-connect: try env URL first, then localhost fallback
   useEffect(() => {
-    connectSocket(serverUrl);
+    async function autoConnect() {
+      // Try primary URL
+      try {
+        const res = await fetch(`${serverUrl}/api/stats`, { signal: AbortSignal.timeout(3000) });
+        if (res.ok) { connectSocket(serverUrl); return; }
+      } catch { /* unreachable */ }
+
+      // Fallback to localhost if primary isn't localhost
+      if (!serverUrl.includes("localhost")) {
+        try {
+          const fallback = "http://localhost:3211";
+          const res = await fetch(`${fallback}/api/stats`, { signal: AbortSignal.timeout(2000) });
+          if (res.ok) {
+            setServerUrl(fallback);
+            setServerInput(fallback);
+            connectSocket(fallback);
+            return;
+          }
+        } catch { /* localhost also down */ }
+      }
+
+      // Neither worked — still connect (will show disconnected state)
+      connectSocket(serverUrl);
+    }
+    autoConnect();
     return () => disconnectSocket();
   }, []);
 
@@ -192,17 +272,7 @@ export function Dashboard() {
           <div className="flex h-full">
             <div className="flex-1 relative">
               <NetworkGraph />
-              {!isConnected && (
-                <div className="absolute inset-0 flex items-center justify-center bg-pixel-bg/80">
-                  <div className="text-center">
-                    <LobsterSprite status="offline" size={64} className="mx-auto mb-4" />
-                    <p className="font-pixel text-[10px] text-pixel-red">SERVER OFFLINE</p>
-                    <p className="font-pixel text-[8px] text-pixel-gray mt-2">
-                      Start the server with: npm run dev:server
-                    </p>
-                  </div>
-                </div>
-              )}
+              {!isConnected && <ConnectionGuide serverUrl={serverUrl} onConnect={(url) => { setServerUrl(url); setServerInput(url); connectSocket(url); }} />}
             </div>
             <AgentDetailPanel />
           </div>
