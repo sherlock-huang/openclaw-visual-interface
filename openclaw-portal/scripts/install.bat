@@ -55,11 +55,20 @@ if not "%AGENT_NAME%"=="" (
     echo  [OK] Agent 名称设置为: %AGENT_NAME%
 )
 
-:: 设置开机自启动
+:: 设置开机自启动（写入 Startup 文件夹，避免注册表转义问题）
 echo.
 set /p AUTO="  是否设置开机自动启动？(Y/N): "
 if /i "%AUTO%"=="Y" (
-    reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "OpenClawPortalBridge" /t REG_SZ /d "node \"%SKILL_DST%\scripts\bridge.js\"" /f >nul
+    set STARTUP_BAT=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\openclaw-portal-bridge.bat
+    set TMPJS2=%TEMP%\oc-startup.js
+    (
+        echo var startup = require^('path'^).join^(process.env.APPDATA, 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', 'openclaw-portal-bridge.bat'^);
+        echo var bridge  = require^('path'^).join^(process.env.USERPROFILE, '.openclaw', 'workspace', 'skills', 'openclaw-portal', 'scripts', 'bridge.js'^);
+        echo var content = '@echo off\r\nstart /B node "' + bridge + '"\r\n';
+        echo require^('fs'^).writeFileSync^(startup, content^);
+    ) > "%TMPJS2%"
+    node "%TMPJS2%"
+    del "%TMPJS2%" >nul 2>&1
     echo  [OK] 已添加到开机启动项
 )
 
