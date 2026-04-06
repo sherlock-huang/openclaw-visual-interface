@@ -37,17 +37,20 @@ copy /Y "%SKILL_SRC%\scripts\bridge.js"  "%SKILL_DST%\scripts\bridge.js" >nul
 copy /Y "%SKILL_SRC%\assets\config.json" "%SKILL_DST%\assets\config.json" >nul
 echo  [OK] 文件已复制到 %SKILL_DST%
 
-:: 设置 Agent 名称（用 PowerShell 处理 JSON，避免转义问题）
+:: 设置 Agent 名称（直接写入 config.json，避免转义问题）
 echo.
 set /p AGENT_NAME="  请输入你的 Agent 名称（留空使用主机名 %COMPUTERNAME%）: "
-if not "%AGENT_NAME%"=="" (
-    powershell -NoProfile -Command ^
-        "$f = Join-Path $env:USERPROFILE '.openclaw\workspace\skills\openclaw-portal\assets\config.json';" ^
-        "$c = Get-Content $f -Raw | ConvertFrom-Json;" ^
-        "$c.agentName = '%AGENT_NAME%';" ^
-        "$c | ConvertTo-Json | Set-Content $f -Encoding UTF8"
-    echo  [OK] Agent 名称设置为: %AGENT_NAME%
-)
+if "%AGENT_NAME%"=="" set AGENT_NAME=%COMPUTERNAME%
+(
+echo {
+echo   "portalUrl": "https://openclaw-api.kunpeng-ai.com",
+echo   "agentName": "%AGENT_NAME%",
+echo   "agentRole": "worker",
+echo   "capabilities": [],
+echo   "autoStart": true
+echo }
+) > "%SKILL_DST%\assets\config.json"
+echo  [OK] Agent 名称设置为: %AGENT_NAME%
 
 :: 设置开机自启动（写入 Startup 文件夹）
 echo.

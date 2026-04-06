@@ -10679,12 +10679,14 @@ var { WebSocket } = require_ws2();
 var os = require("os");
 var fs = require("fs");
 var path = require("path");
-var CONFIG_PATH = path.join(__dirname, "../assets/config.json");
+var SKILL_DIR = path.join(os.homedir(), ".openclaw", "workspace", "skills", "openclaw-portal");
+var CONFIG_PATH = path.join(SKILL_DIR, "assets", "config.json");
 var PID_FILE = path.join(os.tmpdir(), "openclaw-portal-bridge.pid");
 var LOG_FILE = path.join(os.homedir(), ".openclaw", "portal-bridge.log");
 function loadConfig() {
   try {
-    return JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
+    const raw = fs.readFileSync(CONFIG_PATH, "utf8");
+    return JSON.parse(raw);
   } catch {
     return { portalUrl: "https://openclaw-api.kunpeng-ai.com", autoStart: true };
   }

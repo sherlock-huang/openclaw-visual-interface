@@ -11,13 +11,16 @@ const fs = require("fs");
 const path = require("path");
 
 // ── 读取配置 ─────────────────────────────────────────────────
-const CONFIG_PATH = path.join(__dirname, "../assets/config.json");
+// 配置文件固定在 ~/.openclaw/workspace/skills/openclaw-portal/assets/config.json
+const SKILL_DIR = path.join(os.homedir(), ".openclaw", "workspace", "skills", "openclaw-portal");
+const CONFIG_PATH = path.join(SKILL_DIR, "assets", "config.json");
 const PID_FILE = path.join(os.tmpdir(), "openclaw-portal-bridge.pid");
 const LOG_FILE = path.join(os.homedir(), ".openclaw", "portal-bridge.log");
 
 function loadConfig() {
   try {
-    return JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
+    const raw = fs.readFileSync(CONFIG_PATH, "utf8");
+    return JSON.parse(raw);
   } catch {
     return { portalUrl: "https://openclaw-api.kunpeng-ai.com", autoStart: true };
   }
