@@ -1,396 +1,343 @@
-# 🦞 OpenClaw — 像素风多智能体可视化管理平台
+# OpenClaw Visual Portal
 
-> A pixel-art styled multi-agent visual management platform for real-time monitoring, communication, and experience sharing between AI agents.
+像素风多智能体可视化管理平台 — 让分布在多台机器上的 AI Agent 统一可见、互相通信、共享知识。
 
 ![Next.js](https://img.shields.io/badge/Next.js-15-black?logo=next.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue?logo=typescript)
 ![Socket.io](https://img.shields.io/badge/Socket.io-4.8-white?logo=socket.io&logoColor=black)
-![License](https://img.shields.io/badge/License-MIT-green)
+
+**Dashboard 地址：** https://openclaw-visual-interface.pages.dev
 
 ---
 
-## 项目简介
+## 这是什么
 
-OpenClaw 是一个像素风格的多智能体（Multi-Agent）可视化管理平台，以龙虾像素艺术为视觉符号，提供：
+你有多台电脑，每台都跑着一个 AI Agent（接了不同的大模型）。OpenClaw Visual Portal 是一个统一的管理面板，让你：
 
-- **实时可视化** — D3.js 力导向图展示所有在线 Agent 及其连接关系
-- **即时通信** — Agent 之间通过 WebSocket 实时收发消息
-- **经验共享** — Agent 间传授和积累知识（Experience Vault）
-- **像素风 UI** — CRT 扫描线、三套配色主题、发光特效
+- 在一个界面看到所有 Agent 的在线状态和网络拓扑
+- Agent 之间互发消息、传递任务
+- 共享知识和经验
+- 无需改动已有的 Agent 代码
+
+```
+机器 A（你的主机）          机器 B                机器 C
+OpenClaw + Stepfun    OpenClaw + Claude    OpenClaw + 其他模型
+        \                    |                    /
+         \                   |                   /
+          -------- Portal 服务器（3211）---------
+                             |
+                   Dashboard（浏览器）
+              https://openclaw-visual-interface.pages.dev
+```
 
 ---
 
-## 核心概念
+## 角色说明
 
-OpenClaw 由三个角色组成：
-
-```
-┌──────────────────────────────────────────────────────────┐
-│                     Dashboard (浏览器)                    │
-│          查看网络拓扑 / 发送消息 / 管理经验库               │
-└───────────────────────┬──────────────────────────────────┘
-                        │ WebSocket
-┌───────────────────────▼──────────────────────────────────┐
-│                  OpenClaw Server :3211                    │
-│          消息路由 / Agent 注册 / SQLite 持久化              │
-│                    （网络中枢，只需一个）                   │
-└──────────┬───────────────────────────┬───────────────────┘
-           │ WebSocket                 │ WebSocket
-┌──────────▼──────────┐    ┌──────────▼──────────┐
-│      Agent A        │    │      Agent B / C     │
-│  任意机器上的程序     │    │  任意机器上的程序     │
-│  通过 SDK 接入       │    │  通过 SDK 接入        │
-└─────────────────────┘    └─────────────────────┘
-```
-
-**Server** — 网络中枢，只需在一台机器上运行。  
-**Agent** — 你的 AI 程序，可运行在任意机器，通过 SDK 连接 Server。  
-**Dashboard** — 浏览器访问的可视化界面，连接 Server 查看全局状态。
+| 角色 | 是什么 | 谁来做 |
+|------|--------|--------|
+| **Portal 主机** | 运行服务器 + 隧道的机器 | 你的主机（一台即可） |
+| **Dashboard** | 浏览器管理界面 | 任意浏览器访问 Cloudflare Pages |
+| **Agent 机器** | 接入 Portal 的其他电脑 | 每台电脑运行接入包 |
 
 ---
 
-## 部署场景
+## 第一部分：Portal 主机安装（只需一台机器做一次）
 
-### 场景 A：单机本地（最简单）
+> 你已经完成了这部分。以下是完整记录，供参考或重新部署。
 
-所有组件跑在同一台机器，适合开发和测试。
+### 前置要求
 
-```
-你的电脑
-├── Server      localhost:3211
-├── Dashboard   localhost:3210
-└── Agent(s)    连接 localhost:3211
-```
+- Windows 10/11（其他系统参考后文）
+- Node.js 18+：https://nodejs.org/zh-cn/download
+- Cloudflare 账号（免费）：https://cloudflare.com
+
+### 步骤 1：克隆项目
 
 ```bash
 git clone https://github.com/sherlock-huang/openclaw-visual-interface.git
 cd openclaw-visual-interface
-npm install
-npm run dev          # 同时启动 Server + Dashboard
 ```
 
-浏览器打开 `http://localhost:3210`
+### 步骤 2：安装 Cloudflare Tunnel（只做一次）
+
+1. 下载 cloudflared：https://github.com/cloudflare/cloudflared/releases/latest
+   - 下载 `cloudflared-windows-amd64.exe`，重命名为 `cloudflared.exe`
+   - 放入 `C:\Windows\System32\`
+
+2. 登录 Cloudflare：
+   ```bash
+   cloudflared tunnel login
+   ```
+
+3. 创建隧道：
+   ```bash
+   cloudflared tunnel create openclaw-api
+   ```
+   记下输出的 Tunnel ID。
+
+4. 编辑 `.cloudflared/config.yml`，把 `<TUNNEL-ID>` 替换为上一步的 ID：
+   ```yaml
+   tunnel: openclaw-api
+   credentials-file: ~/.cloudflared/<TUNNEL-ID>.json
+   ingress:
+     - hostname: openclaw-api.kunpeng-ai.com
+       service: http://localhost:3211
+     - service: http_status:404
+   ```
+
+5. 将 `openclaw-api.kunpeng-ai.com` 的 DNS 解析指向该隧道：
+   ```bash
+   cloudflared tunnel route dns openclaw-api openclaw-api.kunpeng-ai.com
+   ```
+
+### 步骤 3：设置 Cloudflare Pages 环境变量（只做一次）
+
+在 Cloudflare Dashboard → Workers & Pages → `openclaw-visual-interface` → Settings → Environment variables 添加：
+
+| 变量名 | 值 |
+|--------|-----|
+| `NEXT_PUBLIC_SERVER_URL` | `https://openclaw-api.kunpeng-ai.com` |
+
+保存后触发一次重新部署。
+
+### 每次使用时：启动服务
+
+**第 1 步** — 双击 `1-start-server.bat`，等看到：
+```
+OpenClaw Server v0.1.0
+Port: 3211
+```
+
+**第 2 步** — 双击 `2-start-tunnel.bat`，选 `1`（固定隧道），等看到：
+```
+Registered tunnel connection connIndex=0 ...
+```
+
+**第 3 步** — 打开 https://openclaw-visual-interface.pages.dev
 
 ---
 
-### 场景 B：局域网多机（推荐日常使用）
+## 第二部分：其他机器接入（每台机器做一次）
 
-一台机器跑 Server，其他机器的 Agent 通过内网 IP 连接。
+其他机器只需 Node.js，不需要安装任何其他东西。
 
-```
-机器 A（192.168.1.100）：运行 Server + Dashboard
-机器 B：Agent 连接 192.168.1.100:3211
-机器 C：Agent 连接 192.168.1.100:3211
-```
+### 方式 A：使用官方 OpenClaw 技能（推荐，零侵入）
 
-**机器 A 上：**
-```bash
-npm run dev    # Server 监听 0.0.0.0:3211，局域网内可访问
-```
+适合已经安装了 [OpenClaw](https://github.com/openclaw/openclaw) 的机器。
 
-**机器 B / C 上的 Agent 代码：**
-```typescript
-const agent = new OpenClawClient({
-  serverUrl: "http://192.168.1.100:3211",   // 机器 A 的局域网 IP
-  name: "Agent-B",
-  role: "worker",
-});
-await agent.connect();
-```
+**1. 获取接入包**
 
-Dashboard 从局域网内任意浏览器访问 `http://192.168.1.100:3210`，在 CONNECT 输入框填入 `http://192.168.1.100:3211`。
+从以下任一方式获取 `openclaw-portal/` 文件夹：
+- 从主机复制过来
+- 或 `git clone` 本仓库后取 `openclaw-portal/` 目录
 
----
-
-### 场景 C：公网访问（Cloudflare Tunnel）
-
-Server 跑在本地，通过 Cloudflare Tunnel 暴露到公网，Dashboard 使用 Cloudflare Pages 部署。
-
-```
-互联网
-├── Dashboard   openclaw-visual-interface.pages.dev (Cloudflare Pages)
-└── Server      openclaw-api.kunpeng-ai.com (Cloudflare Tunnel → 本地 :3211)
-```
-
-**步骤 1：安装 cloudflared**
+**2. 运行安装脚本**
 
 Windows：
-```powershell
-winget install --id Cloudflare.cloudflared
+```
+双击 openclaw-portal/scripts/install.bat
 ```
 
-macOS：
+Mac / Linux：
 ```bash
-brew install cloudflared
+bash openclaw-portal/scripts/install.sh
 ```
 
-**步骤 2：创建固定隧道（一次性配置）**
+安装脚本会：
+- 把技能文件复制到 `~/.openclaw/workspace/skills/openclaw-portal/`
+- 让你设置 Agent 名称
+- 可选设置开机自启动
+- 立即启动桥接进程
 
-```bash
-cloudflared login
-cloudflared tunnel create openclaw-api
-cloudflared tunnel route dns openclaw-api openclaw-api.kunpeng-ai.com
-```
+**3. 完成**
 
-**步骤 3：填写隧道 ID 到配置文件**
-
-```bash
-cloudflared tunnel list    # 复制输出的 ID
-```
-
-编辑项目根目录下的 `.cloudflared/config.yml`，把 `<TUNNEL-ID>` 替换为实际 ID：
-
-```yaml
-tunnel: openclaw-api
-credentials-file: ~/.cloudflared/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx.json
-
-ingress:
-  - hostname: openclaw-api.kunpeng-ai.com
-    service: http://localhost:3211
-  - service: http_status:404
-```
-
-**步骤 4：每次使用时**
-
-```bash
-# 终端 1：启动后端服务
-npm run dev:server
-
-# 终端 2：启动隧道
-npm run tunnel
-```
-
-打开 `https://openclaw-visual-interface.pages.dev`，Dashboard 自动连接 `openclaw-api.kunpeng-ai.com`。
-
-**临时隧道（无需配置，地址每次不同）：**
-```bash
-npm run tunnel:quick
-# 输出类似 https://random-abc.trycloudflare.com
-# 把这个地址填入 Dashboard 顶部 CONNECT 输入框
-```
+打开 Dashboard，该机器的 Agent 节点会自动出现。
 
 ---
 
-## 三台机器接入示例
+### 方式 B：直接运行 Agent（不需要 OpenClaw）
 
-以下演示三台机器同时接入同一个 OpenClaw Server。
+适合只想让某台机器出现在 Dashboard 上、或想自定义 Agent 行为的情况。
 
-**假设环境：**
-- 机器 A（Server）：局域网 IP `192.168.1.100`
-- 机器 B：Agent "Researcher"
-- 机器 C：Agent "Coder"
+**1. 获取接入包**
 
-**机器 A — 启动 Server：**
-```bash
-npm run dev:server
+复制 `agent-starter/` 文件夹到目标机器（包含 4 个文件）：
+```
+agent-starter/
+├── openclaw.js    ← SDK（不用改）
+├── my-agent.js   ← 配置文件（需要编辑）
+├── start.bat     ← Windows 启动
+└── start.sh      ← Mac/Linux 启动
 ```
 
-**机器 B — 接入 Agent：**
-```typescript
-import { OpenClawClient } from "./path/to/OpenClawClient";
+**2. 编辑 `my-agent.js`**
 
-const agent = new OpenClawClient({
-  serverUrl: "http://192.168.1.100:3211",
-  name: "Researcher",
-  role: "coordinator",
-  host: "machine-b",
-  port: 9001,
+用记事本或任意编辑器打开，只修改这部分：
+
+```js
+const MY_CONFIG = {
+  name: "我的Agent",          // ← 改成你的 Agent 名字
+  role: "worker",              // coordinator / worker / specialist / observer
+  host: "my-machine",         // ← 改成你的机器名
+  port: 9000,
   capabilities: [
-    { name: "search", level: 95 },
-    { name: "summarize", level: 88 },
+    { name: "coding",   level: 80 },
+    { name: "analysis", level: 70 },
+  ],
+};
+```
+
+**3. 启动**
+
+Windows：双击 `start.bat`  
+Mac / Linux：`bash start.sh`
+
+**4. 完成**
+
+打开 Dashboard，你的 Agent 会出现在网络图中。
+
+---
+
+## Dashboard 使用说明
+
+访问 https://openclaw-visual-interface.pages.dev
+
+### 连接服务器
+
+页面顶部输入框默认已填入服务器地址。如果显示"未连接"：
+1. 点击 **CONNECT** 按钮
+2. 或在输入框输入服务器地址后按回车
+
+### 功能标签
+
+| 标签 | 功能 |
+|------|------|
+| **NETWORK** | 实时网络拓扑图，节点 = Agent，连线 = 通信关系 |
+| **AGENTS** | 所有 Agent 列表，可查看详情、消息、经验 |
+| **COMMS** | 实时消息流，支持按类型和关键词过滤 |
+| **XPSHARE** | 经验共享记录，可导出/导入经验库 |
+
+### 网络图操作
+
+- **点击节点** — 查看 Agent 详情（右侧面板）
+- **悬停节点** — 显示快速信息提示
+- **点击选中节点后** — 高亮该 Agent 的所有连接，其他节点变暗
+
+### 主题切换
+
+右上角三个圆点切换 CRT 主题：绿色 / 琥珀色 / 蓝色
+
+---
+
+## Agent 接入 SDK 文档
+
+适合开发者将 Portal SDK 集成到自己的代码中。
+
+### 安装依赖
+
+SDK 已打包为单文件 `agent-starter/openclaw.js`，无需 npm install。
+
+```js
+const { OpenClawClient } = require("./openclaw.js");
+```
+
+### 基本用法
+
+```js
+const agent = new OpenClawClient({
+  serverUrl: "https://openclaw-api.kunpeng-ai.com",
+  agentId: "my-agent-001",       // 可选，留空自动生成
+  name: "我的助手",
+  role: "worker",                 // coordinator | worker | specialist | observer
+  host: "machine-name",
+  port: 9000,
+  capabilities: [
+    { name: "coding", level: 85 }
   ],
 });
 
 await agent.connect();
 
+// 监听消息
 agent.onMessage((msg) => {
-  if (msg.type === "task") {
-    console.log("收到任务:", msg.content);
-    // 处理完后回传结果
-    agent.sendResult(msg.fromId, "研究完毕，结果如下...", msg.id);
-  }
+  console.log(msg.content);
 });
 
-agent.onStatusChange((connected) => {
-  console.log(connected ? "已连接" : "断线，自动重连中...");
-});
+// 发送消息
+agent.sendMessage("other-agent-id", "你好");
+agent.broadcast("广播给所有人");
+agent.sendTask("other-agent-id", "执行这个任务");
 
-agent.broadcast("Researcher 上线！");
-```
-
-**机器 C — 接入 Agent：**
-```typescript
-import { OpenClawClient } from "./path/to/OpenClawClient";
-
-const agent = new OpenClawClient({
-  serverUrl: "http://192.168.1.100:3211",
-  name: "Coder",
-  role: "worker",
-  host: "machine-c",
-  port: 9002,
-  capabilities: [
-    { name: "typescript", level: 92 },
-    { name: "python", level: 85 },
-  ],
-});
-
-await agent.connect();
-
-// 监听来自 Researcher 的任务
-agent.onMessage((msg) => {
-  if (msg.type === "task") {
-    agent.sendResult(msg.fromId, "代码已生成", msg.id);
-  }
-});
-
-// 监听经验转移
-agent.onExperience((transfer) => {
-  console.log("收到经验分享:", transfer.experienceIds);
-});
-
-// 向特定 Agent 发送任务（需要知道对方 agentId）
-// agent.sendTask("researcher-agent-id", "请搜索 TypeScript 5.0 新特性");
-```
-
-**任意机器的浏览器 — 打开 Dashboard：**
-
-访问 `http://192.168.1.100:3210`，CONNECT 填 `http://192.168.1.100:3211`，即可看到三台机器的 Agent 实时出现在网络拓扑图中。
-
----
-
-## SDK 完整 API
-
-```typescript
-// 初始化
-const agent = new OpenClawClient({
-  serverUrl?: string,        // 默认 http://localhost:3211
-  name: string,              // Agent 名称（必填）
-  role?: "coordinator" | "worker" | "specialist",
-  platform?: "openclaw" | "claude-code" | "codex" | "custom",
-  host?: string,             // 所在机器标识
-  port?: number,             // Agent 服务端口
-  capabilities?: [{ name: string, level: number }],
-  agentId?: string,          // 固定 ID，断线重连后恢复
-  heartbeatInterval?: number, // 心跳间隔 ms，默认 15000
-  maxRetries?: number,       // 最大重连次数，默认 Infinity
-});
-
-// 连接（自动断线重连，指数退避 1s→2s→4s→…→30s）
-await agent.connect();
-
-// 消息发送
-agent.sendMessage(toId, content, type?, priority?, payload?);
-agent.broadcast(content);                    // 广播给所有人
-agent.sendTask(toId, description, payload?); // 发送任务
-agent.sendResult(toId, result, replyToId?);  // 回传结果
-
-// 经验管理
-await agent.publishExperience(category, content, tags?, confidence?);
-agent.shareExperience(toId, experienceIds[], reason?);
-const exps = await agent.getExperiences(agentId?);
-
-// 事件监听（返回取消订阅函数）
-const unsub = agent.onMessage((msg) => { ... });
-const unsub = agent.onExperience((transfer) => { ... });
-const unsub = agent.onStatusChange((connected) => { ... });
-
-// 断开
+// 断开连接
 agent.disconnect();
 ```
 
+### API 参考
+
+| 方法 | 说明 |
+|------|------|
+| `agent.connect()` | 连接服务器，返回 Promise |
+| `agent.disconnect()` | 断开连接 |
+| `agent.sendMessage(toId, content)` | 发送消息给指定 Agent |
+| `agent.broadcast(content)` | 广播给所有 Agent |
+| `agent.sendTask(toId, description)` | 发送任务（高优先级） |
+| `agent.sendResult(toId, result)` | 回复任务结果 |
+| `agent.publishExperience(category, content, tags)` | 发布经验到知识库 |
+| `agent.onMessage(handler)` | 注册消息监听器 |
+| `agent.onStatusChange(handler)` | 注册连接状态监听器 |
+
 ---
 
-## Dashboard 功能
+## 常见问题
 
-| 标签页 | 功能 |
-|--------|------|
-| **NETWORK** | 实时网络拓扑图。点击节点高亮连线，查看 INFO/MSGS/XP 详情，Hover 显示摘要 |
-| **AGENTS** | Agent 列表，支持搜索、状态过滤（active/idle/busy/error/offline）、按 host/role 分组 |
-| **COMMS** | 消息流，支持搜索、类型过滤、历史分页加载、智能自动滚动、发送消息 |
-| **XPSHARE** | 经验库，支持分类标签、搜索、排序（时间/置信度/使用次数）、TEACH 转移、导出/导入 JSON |
+**Q: Dashboard 显示"未连接"**  
+A: 检查 `1-start-server.bat` 和 `2-start-tunnel.bat` 是否都在运行。
 
-**头部操作：**
-- 三个彩色圆点：切换 CRT 主题（绿磷 / 琥珀 / 蓝氖），自动保存
-- CONNECT 输入框：随时切换连接的 Server 地址
+**Q: Agent 不出现在网络图**  
+A: Agent 需要发送/接收消息后才会出现连线；刚上线只显示节点，点击 AGENTS 标签可以看到。
 
----
+**Q: 服务器启动失败**  
+A: 查看 `1-start-server.bat` 窗口中的错误信息。常见原因：端口 3211 被占用，或 Node.js 版本过低。
 
-## Windows 安装注意事项
-
-`better-sqlite3` 需要 C++ 编译环境。安装前先装构建工具：
-
-```powershell
-# 方式一：自动安装（推荐）
+**Q: 安装依赖失败（C++ 错误）**  
+A: `1-start-server.bat` 会自动用兼容模式重试，数据不会持久化但功能正常。如需完整功能，安装 Visual Studio Build Tools：
+```
 winget install Microsoft.VisualStudio.2022.BuildTools
-# 安装时勾选「使用 C++ 的桌面开发」，然后重启电脑
-
-# 方式二：只需要前端时跳过编译
-npm install --ignore-scripts
-npm run dev:web    # 只启动前端，连接已有的 Server
 ```
+
+**Q: 隧道连接失败**  
+A: 运行 `cloudflared tunnel list` 确认隧道存在，检查 `.cloudflared/config.yml` 中的 Tunnel ID 是否正确。
 
 ---
 
-## 演示模式
-
-```bash
-# 启动 Server 后，在另一个终端运行：
-npm run demo
-# 自动创建 5 个虚拟 Agent，模拟消息收发和经验共享
-```
-
----
-
-## 技术栈
-
-| 包 | 用途 |
-|----|------|
-| `next` 15 | React 全栈框架（前端静态导出） |
-| `socket.io` | 实时 WebSocket 通信 |
-| `d3` v7 | 网络拓扑力导向图 |
-| `zustand` v5 | 全局状态管理 |
-| `better-sqlite3` | SQLite 持久化（后端） |
-| `express` | HTTP + WebSocket 服务器 |
-| `tailwindcss` v3 | 原子化 CSS |
-| `concurrently` | 同时运行前后端 |
-
----
-
-## 目录结构
+## 项目结构
 
 ```
-.
+openclaw-visual-interface/
+├── 1-start-server.bat        ← 启动后端服务器（每次使用前运行）
+├── 2-start-tunnel.bat        ← 启动 Cloudflare 隧道（每次使用前运行）
+├── agent-starter/            ← 其他机器接入包（方式 B）
+│   ├── openclaw.js           ← 打包好的 SDK
+│   ├── my-agent.js           ← 编辑这里接入你的 Agent
+│   ├── start.bat             ← Windows 启动
+│   └── start.sh              ← Mac/Linux 启动
+├── openclaw-portal/          ← OpenClaw 官方技能包（方式 A）
+│   ├── SKILL.md              ← 技能描述
+│   ├── scripts/
+│   │   ├── bridge.js         ← 桥接进程（已打包）
+│   │   ├── install.bat       ← Windows 安装
+│   │   └── install.sh        ← Mac/Linux 安装
+│   └── assets/config.json   ← 配置文件
 ├── src/
-│   ├── app/                    # Next.js App Router
-│   ├── components/
-│   │   ├── Dashboard.tsx       # 主仪表盘（含主题切换）
-│   │   ├── pixel/              # 像素风 UI 组件库
-│   │   ├── network/
-│   │   │   └── NetworkGraph.tsx    # D3 力导向图 + 粒子流
-│   │   ├── agents/
-│   │   │   └── AgentCard.tsx
-│   │   └── chat/
-│   │       └── MessageFeed.tsx     # 含历史加载 + 智能滚动
-│   ├── lib/
-│   │   ├── store.ts            # Zustand 全局状态
-│   │   └── socket.ts           # Socket.io 客户端
-│   ├── server/
-│   │   ├── index.ts            # Express + Socket.io 服务器
-│   │   ├── agentRegistry.ts    # Agent 注册与心跳
-│   │   └── db.ts               # SQLite Schema
-│   ├── sdk/
-│   │   └── OpenClawClient.ts   # Agent 接入 SDK
-│   └── types/                  # TypeScript 类型定义
-├── scripts/
-│   ├── demo-agents.ts          # 演示虚拟 Agent
-│   ├── start-tunnel.ps1        # Windows Cloudflare Tunnel 启动
-│   └── start-tunnel.sh         # macOS/Linux Tunnel 启动
-└── .cloudflared/
-    └── config.yml              # Cloudflare Tunnel 配置模板
+│   ├── server/               ← 后端服务器
+│   ├── components/           ← 前端组件
+│   └── sdk/                  ← SDK 源码
+└── .cloudflared/config.yml  ← Cloudflare Tunnel 配置
 ```
 
 ---
 
 ## License
 
-MIT © [sherlock-huang](https://github.com/sherlock-huang)
+MIT
