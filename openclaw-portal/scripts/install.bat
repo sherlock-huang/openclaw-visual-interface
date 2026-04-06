@@ -19,7 +19,7 @@ if errorlevel 1 (
 for /f %%v in ('node -v') do set NODE_VER=%%v
 echo  [OK] Node.js %NODE_VER%
 
-:: 确定路径
+:: 确定路径（用正斜杠避免转义问题）
 set SKILL_SRC=%~dp0..
 set SKILL_DST=%USERPROFILE%\.openclaw\workspace\skills\openclaw-portal
 
@@ -41,7 +41,17 @@ echo  [OK] 文件已复制到 %SKILL_DST%
 echo.
 set /p AGENT_NAME="  请输入你的 Agent 名称（留空使用主机名 %COMPUTERNAME%）: "
 if not "%AGENT_NAME%"=="" (
-    node -e "const f='%SKILL_DST%\\assets\\config.json'.replace(/\\/g,'\\\\');const c=JSON.parse(require('fs').readFileSync(f,'utf8'));c.agentName='%AGENT_NAME%';require('fs').writeFileSync(f,JSON.stringify(c,null,2));"
+    :: 写临时 JS 文件避免路径转义问题
+    set TMPJS=%TEMP%\oc-setname.js
+    (
+        echo var path = require^('path'^);
+        echo var f = path.join^(process.env.USERPROFILE, '.openclaw', 'workspace', 'skills', 'openclaw-portal', 'assets', 'config.json'^);
+        echo var c = JSON.parse^(require^('fs'^).readFileSync^(f, 'utf8'^)^);
+        echo c.agentName = '%AGENT_NAME%';
+        echo require^('fs'^).writeFileSync^(f, JSON.stringify^(c, null, 2^)^);
+    ) > "%TMPJS%"
+    node "%TMPJS%"
+    del "%TMPJS%" >nul 2>&1
     echo  [OK] Agent 名称设置为: %AGENT_NAME%
 )
 
@@ -49,8 +59,7 @@ if not "%AGENT_NAME%"=="" (
 echo.
 set /p AUTO="  是否设置开机自动启动？(Y/N): "
 if /i "%AUTO%"=="Y" (
-    set STARTUP_KEY=HKCU\Software\Microsoft\Windows\CurrentVersion\Run
-    reg add "%STARTUP_KEY%" /v "OpenClawPortalBridge" /t REG_SZ /d "node \"%SKILL_DST%\scripts\bridge.js\"" /f >nul
+    reg add "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" /v "OpenClawPortalBridge" /t REG_SZ /d "node \"%SKILL_DST%\scripts\bridge.js\"" /f >nul
     echo  [OK] 已添加到开机启动项
 )
 
