@@ -19,7 +19,7 @@ if errorlevel 1 (
 for /f %%v in ('node -v') do set NODE_VER=%%v
 echo  [OK] Node.js %NODE_VER%
 
-:: 确定路径（用正斜杠避免转义问题）
+:: 确定路径
 set SKILL_SRC=%~dp0..
 set SKILL_DST=%USERPROFILE%\.openclaw\workspace\skills\openclaw-portal
 
@@ -37,38 +37,27 @@ copy /Y "%SKILL_SRC%\scripts\bridge.js"  "%SKILL_DST%\scripts\bridge.js" >nul
 copy /Y "%SKILL_SRC%\assets\config.json" "%SKILL_DST%\assets\config.json" >nul
 echo  [OK] 文件已复制到 %SKILL_DST%
 
-:: 设置 Agent 名称
+:: 设置 Agent 名称（用 PowerShell 处理 JSON，避免转义问题）
 echo.
 set /p AGENT_NAME="  请输入你的 Agent 名称（留空使用主机名 %COMPUTERNAME%）: "
 if not "%AGENT_NAME%"=="" (
-    :: 写临时 JS 文件避免路径转义问题
-    set TMPJS=%TEMP%\oc-setname.js
-    (
-        echo var path = require^('path'^);
-        echo var f = path.join^(process.env.USERPROFILE, '.openclaw', 'workspace', 'skills', 'openclaw-portal', 'assets', 'config.json'^);
-        echo var c = JSON.parse^(require^('fs'^).readFileSync^(f, 'utf8'^)^);
-        echo c.agentName = '%AGENT_NAME%';
-        echo require^('fs'^).writeFileSync^(f, JSON.stringify^(c, null, 2^)^);
-    ) > "%TMPJS%"
-    node "%TMPJS%"
-    del "%TMPJS%" >nul 2>&1
+    powershell -NoProfile -Command ^
+        "$f = Join-Path $env:USERPROFILE '.openclaw\workspace\skills\openclaw-portal\assets\config.json';" ^
+        "$c = Get-Content $f -Raw | ConvertFrom-Json;" ^
+        "$c.agentName = '%AGENT_NAME%';" ^
+        "$c | ConvertTo-Json | Set-Content $f -Encoding UTF8"
     echo  [OK] Agent 名称设置为: %AGENT_NAME%
 )
 
-:: 设置开机自启动（写入 Startup 文件夹，避免注册表转义问题）
+:: 设置开机自启动（写入 Startup 文件夹）
 echo.
 set /p AUTO="  是否设置开机自动启动？(Y/N): "
 if /i "%AUTO%"=="Y" (
-    set STARTUP_BAT=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\openclaw-portal-bridge.bat
-    set TMPJS2=%TEMP%\oc-startup.js
-    (
-        echo var startup = require^('path'^).join^(process.env.APPDATA, 'Microsoft', 'Windows', 'Start Menu', 'Programs', 'Startup', 'openclaw-portal-bridge.bat'^);
-        echo var bridge  = require^('path'^).join^(process.env.USERPROFILE, '.openclaw', 'workspace', 'skills', 'openclaw-portal', 'scripts', 'bridge.js'^);
-        echo var content = '@echo off\r\nstart /B node "' + bridge + '"\r\n';
-        echo require^('fs'^).writeFileSync^(startup, content^);
-    ) > "%TMPJS2%"
-    node "%TMPJS2%"
-    del "%TMPJS2%" >nul 2>&1
+    set STARTUP=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\openclaw-portal-bridge.bat
+    powershell -NoProfile -Command ^
+        "$bridge = Join-Path $env:USERPROFILE '.openclaw\workspace\skills\openclaw-portal\scripts\bridge.js';" ^
+        "$startup = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Startup\openclaw-portal-bridge.bat';" ^
+        "Set-Content $startup -Value ('@echo off' + [char]10 + 'start /B node \"' + $bridge + '\"') -Encoding UTF8"
     echo  [OK] 已添加到开机启动项
 )
 
