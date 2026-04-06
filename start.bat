@@ -126,10 +126,10 @@ echo  [等待] 等待服务器就绪...
 set RETRY=0
 :check_loop
 timeout /t 2 /nobreak >nul
-netstat -ano | findstr ":3211 " | findstr "LISTENING" >nul 2>&1
+curl -s --max-time 2 http://localhost:3211/api/ping >nul 2>&1
 if not errorlevel 1 goto :server_ready
 set /a RETRY+=1
-if %RETRY% lss 10 (
+if %RETRY% lss 12 (
     echo  [等待] 第 %RETRY% 次检测，服务器启动中...
     goto :check_loop
 )

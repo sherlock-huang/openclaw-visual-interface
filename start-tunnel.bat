@@ -31,7 +31,7 @@ echo  [OK] cloudflared 已安装
 
 :: ── 2. 检查 Server 是否运行 ───────────────────────────────
 :: 用 curl 直接请求 API 更可靠（不依赖 netstat 格式）
-curl -s --max-time 3 http://localhost:3211/api/stats >nul 2>&1
+curl -s --max-time 3 http://localhost:3211/api/ping >nul 2>&1
 if errorlevel 1 (
     echo  [警告] OpenClaw Server 未响应（端口 3211 无法访问）
     echo.

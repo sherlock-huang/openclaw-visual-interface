@@ -28,6 +28,11 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
 
 // ── REST API ──────────────────────────────────────────────
 
+// Health check – no DB, always responds
+app.get("/api/ping", (_req, res) => {
+  res.json({ ok: true, time: Date.now() });
+});
+
 app.get("/api/agents", (_req, res) => {
   res.json(getAllAgents());
 });
@@ -102,13 +107,18 @@ app.get("/api/network", (_req, res) => {
 });
 
 app.get("/api/stats", (_req, res) => {
-  const db = getDb();
-  const agentCount = (db.prepare("SELECT COUNT(*) as c FROM agents WHERE status != 'offline'").get() as { c: number }).c;
-  const msgCount = (db.prepare("SELECT COUNT(*) as c FROM messages").get() as { c: number }).c;
-  const expCount = (db.prepare("SELECT COUNT(*) as c FROM experiences").get() as { c: number }).c;
-  const transferCount = (db.prepare("SELECT COUNT(*) as c FROM experience_transfers WHERE accepted = 1").get() as { c: number }).c;
-  const linkCount = (db.prepare("SELECT COUNT(*) as c FROM (SELECT DISTINCT from_id, to_id FROM messages WHERE to_id != 'broadcast')").get() as { c: number }).c;
-  res.json({ activeAgents: agentCount, totalMessages: msgCount, totalExperiences: expCount, completedTransfers: transferCount, activeLinks: linkCount });
+  try {
+    const db = getDb();
+    const agentCount = (db.prepare("SELECT COUNT(*) as c FROM agents WHERE status != 'offline'").get() as { c: number }).c;
+    const msgCount = (db.prepare("SELECT COUNT(*) as c FROM messages").get() as { c: number }).c;
+    const expCount = (db.prepare("SELECT COUNT(*) as c FROM experiences").get() as { c: number }).c;
+    const transferCount = (db.prepare("SELECT COUNT(*) as c FROM experience_transfers WHERE accepted = 1").get() as { c: number }).c;
+    const linkCount = (db.prepare("SELECT COUNT(*) as c FROM (SELECT DISTINCT from_id, to_id FROM messages WHERE to_id != 'broadcast')").get() as { c: number }).c;
+    res.json({ activeAgents: agentCount, totalMessages: msgCount, totalExperiences: expCount, completedTransfers: transferCount, activeLinks: linkCount });
+  } catch (e) {
+    console.error("[DB] stats error:", e);
+    res.json({ activeAgents: 0, totalMessages: 0, totalExperiences: 0, completedTransfers: 0, activeLinks: 0, dbError: true });
+  }
 });
 
 // ── Socket.io ─────────────────────────────────────────────
