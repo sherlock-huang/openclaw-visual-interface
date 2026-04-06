@@ -3,9 +3,9 @@ chcp 65001 >nul
 title OpenClaw 启动器
 
 echo.
-echo  ╔══════════════════════════════════════╗
-echo  ║     OpenClaw 启动检测中...           ║
-echo  ╚══════════════════════════════════════╝
+echo  ==========================================
+echo   OpenClaw 启动检测中...
+echo  ==========================================
 echo.
 
 :: ── 1. 检查 Node.js ──────────────────────────────────────
@@ -92,28 +92,28 @@ echo  [警告] 以兼容模式安装完成
 
 :start
 echo.
-echo  ══════════════════════════════════════════
+echo  ==========================================
 echo   启动 OpenClaw Server（端口 3211）...
-echo  ══════════════════════════════════════════
+echo  ==========================================
 echo.
 
 :: 尝试全局 tsx
 where tsx >nul 2>&1
 if not errorlevel 1 (
     start "OpenClaw-Server" cmd /k "title OpenClaw Server && tsx src/server/index.ts"
-    goto :open_browser
+    goto :wait_server
 )
 
 :: 尝试本地 tsx
 if exist node_modules\.bin\tsx.cmd (
     start "OpenClaw-Server" cmd /k "title OpenClaw Server && node_modules\.bin\tsx src/server/index.ts"
-    goto :open_browser
+    goto :wait_server
 )
 
 :: 尝试 ts-node
 if exist node_modules\.bin\ts-node.cmd (
     start "OpenClaw-Server" cmd /k "title OpenClaw Server && node_modules\.bin\ts-node src/server/index.ts"
-    goto :open_browser
+    goto :wait_server
 )
 
 echo  [错误] 找不到 TypeScript 运行时
@@ -121,10 +121,25 @@ echo  请运行：npm install
 pause
 exit /b 1
 
-:open_browser
-echo  [等待] 服务器启动中（3秒）...
-timeout /t 3 /nobreak >nul
+:wait_server
+echo  [等待] 等待服务器就绪...
+set RETRY=0
+:check_loop
+timeout /t 2 /nobreak >nul
+netstat -ano | findstr ":3211 " | findstr "LISTENING" >nul 2>&1
+if not errorlevel 1 goto :server_ready
+set /a RETRY+=1
+if %RETRY% lss 10 (
+    echo  [等待] 第 %RETRY% 次检测，服务器启动中...
+    goto :check_loop
+)
+echo  [警告] 服务器启动超时，请检查 OpenClaw Server 窗口中的错误信息
+goto :open_browser
 
+:server_ready
+echo  [OK] 服务器已就绪（端口 3211）
+
+:open_browser
 if exist node_modules\next (
     echo  [启动] 本地前端界面（端口 3210）...
     start "OpenClaw-Web" cmd /k "title OpenClaw Web && node_modules\.bin\next dev -p 3210"
@@ -137,12 +152,12 @@ if exist node_modules\next (
 )
 
 echo.
-echo  ══════════════════════════════════════════
+echo  ==========================================
 echo   OpenClaw 已启动！
 echo   Server:    http://localhost:3211
 echo   Dashboard: http://localhost:3210
 echo.
 echo   关闭 "OpenClaw Server" 窗口可停止服务
-echo  ══════════════════════════════════════════
+echo  ==========================================
 echo.
 pause
