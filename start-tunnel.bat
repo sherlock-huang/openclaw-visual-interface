@@ -30,12 +30,15 @@ if errorlevel 1 (
 echo  [OK] cloudflared 已安装
 
 :: ── 2. 检查 Server 是否运行 ───────────────────────────────
-netstat -ano | findstr ":3211 " | findstr "LISTENING" >nul 2>&1
+:: 用 curl 直接请求 API 更可靠（不依赖 netstat 格式）
+curl -s --max-time 3 http://localhost:3211/api/stats >nul 2>&1
 if errorlevel 1 (
-    echo  [警告] OpenClaw Server 未运行（端口 3211 未监听）
+    echo  [警告] OpenClaw Server 未响应（端口 3211 无法访问）
     echo.
-    echo  请先双击 start.bat 启动 Server，等 Server 窗口出现
-    echo  "Server is running on port 3211" 字样后，再运行本脚本
+    echo  请检查：
+    echo  1. 是否已双击 start.bat 并等待出现 "[OK] 服务器已就绪"
+    echo  2. 查看 "OpenClaw Server" 窗口中是否有红色报错
+    echo  3. 在命令行手动测试：curl http://localhost:3211/api/stats
     echo.
     pause
     exit /b 1
