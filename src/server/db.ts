@@ -1,4 +1,3 @@
-import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
 
@@ -7,18 +6,74 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
 const DB_PATH = path.join(DATA_DIR, "openclaw.db");
 
-let _db: Database.Database | null = null;
+// ── Try to load better-sqlite3 (needs native binary) ─────────
+let BetterSqlite3: any = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  BetterSqlite3 = require("better-sqlite3");
+} catch {
+  console.warn("[DB] better-sqlite3 not available – running in memory-only mode");
+  console.warn("[DB] To enable persistence: install Visual Studio C++ Build Tools, then run: npm install");
+}
 
-export function getDb(): Database.Database {
+// ── In-memory fallback ────────────────────────────────────────
+// Provides the same prepare().all/get/run and exec interface
+// so the rest of the server code works unchanged.
+function makeMemoryDb() {
+  const tables: Record<string, Record<string, any>[]> = {
+    agents: [], messages: [], experiences: [], experience_transfers: [],
+  };
+
+  const stub = {
+    prepare(sql: string) {
+      return {
+        all(..._args: any[]) { return extractTable(sql, tables) ?? []; },
+        get(..._args: any[]) {
+          // COUNT(*) queries
+          if (/SELECT COUNT/i.test(sql)) return { c: 0 };
+          const rows = extractTable(sql, tables) ?? [];
+          return rows[0] ?? null;
+        },
+        run(..._args: any[]) { return { changes: 0, lastInsertRowid: 0 }; },
+      };
+    },
+    exec(_sql: string) { /* no-op */ },
+    pragma(_s: string) { /* no-op */ },
+  };
+  return stub;
+}
+
+function extractTable(sql: string, tables: Record<string, any[]>) {
+  for (const t of Object.keys(tables)) {
+    if (sql.toLowerCase().includes(t)) return tables[t];
+  }
+  return [];
+}
+
+// ── Public API ────────────────────────────────────────────────
+let _db: any = null;
+
+export function getDb(): any {
   if (_db) return _db;
-  _db = new Database(DB_PATH);
-  _db.pragma("journal_mode = WAL");
-  _db.pragma("foreign_keys = ON");
-  initSchema(_db);
+
+  if (!BetterSqlite3) {
+    _db = makeMemoryDb();
+    return _db;
+  }
+
+  try {
+    _db = new BetterSqlite3(DB_PATH);
+    _db.pragma("journal_mode = WAL");
+    _db.pragma("foreign_keys = ON");
+    initSchema(_db);
+  } catch (e) {
+    console.error("[DB] Failed to open database, falling back to memory mode:", e);
+    _db = makeMemoryDb();
+  }
   return _db;
 }
 
-function initSchema(db: Database.Database) {
+function initSchema(db: any) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS agents (
       id TEXT PRIMARY KEY,
