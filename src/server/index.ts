@@ -11,6 +11,7 @@ import {
   getNetworkLinks,
   incrementMessages,
   getSocketId,
+  clearOfflineAgents,
 } from "./agentRegistry";
 import { getDb } from "./db";
 import type { ServerToClientEvents, ClientToServerEvents, Message } from "../types";
@@ -31,6 +32,11 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(httpServer, {
 // Health check – no DB, always responds
 app.get("/api/ping", (_req, res) => {
   res.json({ ok: true, time: Date.now() });
+});
+
+app.delete("/api/agents/offline", (_req, res) => {
+  const count = clearOfflineAgents();
+  res.json({ cleared: count });
 });
 
 app.get("/api/agents", (_req, res) => {

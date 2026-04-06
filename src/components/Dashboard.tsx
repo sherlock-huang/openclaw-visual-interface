@@ -187,7 +187,18 @@ export function Dashboard() {
     connectSocket(serverInput);
   }
 
+  async function handleClearOffline() {
+    try {
+      await fetch(`${serverUrl}/api/agents/offline`, { method: "DELETE" });
+      // Remove offline agents from local state immediately
+      useNetworkStore.setState((s) => ({
+        agents: s.agents.filter((a) => a.status !== "offline"),
+      }));
+    } catch { /* ignore */ }
+  }
+
   const onlineAgents = agents.filter((a) => a.status !== "offline");
+  const offlineCount = agents.filter((a) => a.status === "offline").length;
 
   const tabs = [
     { id: "graph",      label: "NETWORK"  },
@@ -218,6 +229,15 @@ export function Dashboard() {
           <PixelButton variant={isConnected ? "ghost" : "primary"} onClick={handleConnect} className="py-1">
             {isConnected ? "RECONNECT" : "CONNECT"}
           </PixelButton>
+          {offlineCount > 0 && (
+            <button
+              onClick={handleClearOffline}
+              title={`清除 ${offlineCount} 个离线 Agent`}
+              className="font-pixel text-[7px] px-2 py-1 border border-pixel-red text-pixel-red hover:bg-pixel-red hover:text-black transition-colors ml-1"
+            >
+              清除离线 ({offlineCount})
+            </button>
+          )}
         </div>
 
         {/* CRT Theme switcher */}

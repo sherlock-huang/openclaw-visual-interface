@@ -135,6 +135,20 @@ export function getAllAgents(): Agent[] {
   );
 }
 
+export function clearOfflineAgents(): number {
+  let count = 0;
+  // Clear from memory cache
+  for (const [id, agent] of agentCache.entries()) {
+    if (agent.status === "offline") { agentCache.delete(id); count++; }
+  }
+  // Clear from DB
+  try {
+    const result = getDb().prepare("DELETE FROM agents WHERE status = 'offline'").run() as { changes: number };
+    count = Math.max(count, result.changes);
+  } catch { /* memory mode */ }
+  return count;
+}
+
 export function getAgent(id: string): Agent | undefined {
   try {
     const row = getDb().prepare("SELECT * FROM agents WHERE id = ?").get(id) as Record<string, unknown> | undefined;
