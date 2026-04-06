@@ -23,7 +23,16 @@ if errorlevel 1 (
 )
 
 for /f %%a in ('node -v') do set NODE_VER=%%a
-echo  [OK] Node.js %NODE_VER%
+echo  [OK] Node.js %NODE_VER% 已检测到（不会修改你的环境）
+
+:: 检查版本 >= 14
+node -e "process.exit(parseInt(process.version.slice(1)) >= 14 ? 0 : 1)" >nul 2>&1
+if errorlevel 1 (
+    echo  [警告] Node.js 版本过低（需要 14+，当前 %NODE_VER%）
+    echo  请更新：https://nodejs.org/zh-cn/download
+    pause
+    exit /b 1
+)
 
 :: 检查 my-agent.js
 if not exist my-agent.js (

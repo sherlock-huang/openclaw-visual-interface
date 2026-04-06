@@ -18,7 +18,15 @@ if ! command -v node &> /dev/null; then
 fi
 
 NODE_VER=$(node -v)
-echo " [OK] Node.js $NODE_VER"
+echo " [OK] Node.js $NODE_VER 已检测到（不会修改你的环境）"
+
+# 版本检查
+node -e "process.exit(parseInt(process.version.slice(1)) >= 14 ? 0 : 1)" 2>/dev/null
+if [ $? -ne 0 ]; then
+    echo " [警告] Node.js 版本过低（需要 14+，当前 $NODE_VER）"
+    echo " 请更新：https://nodejs.org/zh-cn/download"
+    exit 1
+fi
 
 # 检查文件
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
