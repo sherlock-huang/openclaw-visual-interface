@@ -5,3 +5,4 @@ dist/
 out/
 next-env.d.ts
 *.tsbuildinfo
+agent-starter/agent.log
