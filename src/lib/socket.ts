@@ -37,13 +37,20 @@ export function disconnectSocket() {
 function bindEvents(s: Socket<ServerToClientEvents, ClientToServerEvents>) {
   const store = useNetworkStore.getState;
 
+  let pollTimer: ReturnType<typeof setInterval> | null = null;
+
   s.on("connect", () => {
     store().setConnected(true);
     s.emit("network:request");
+    // Poll every 3s — catches status changes that server doesn't push
+    pollTimer = setInterval(() => {
+      if (s.connected) s.emit("network:request");
+    }, 3000);
   });
 
   s.on("disconnect", () => {
     store().setConnected(false);
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
   });
 
   s.on("network:snapshot", (data) => {

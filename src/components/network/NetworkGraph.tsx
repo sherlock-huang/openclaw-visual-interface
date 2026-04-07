@@ -397,13 +397,14 @@ export function NetworkGraph() {
     //           > master(idle→meeting) > active+chatty→chat > idle→lounge
     function getZoneTarget(d: AgentNode): { cx: number; cy: number; str: number } | null {
       const zc = zoneCenters;
-      if (d.status === "error")                           return { ...zc.debug,     str: 0.55 };
-      if (d.totalMessages < 5)                           return { ...zc.lobby,     str: 0.45 };
-      if (d.status === "busy" && d.role === "master")    return { ...zc.meeting,   str: 0.40 };
-      if (d.status === "busy")                           return { ...zc.workspace, str: 0.40 };
-      if (d.role === "master")                           return { ...zc.meeting,   str: 0.30 };
-      if (d.status === "active" && d.totalMessages > 20) return { ...zc.chat,     str: 0.28 };
-      if (d.status === "idle")                           return { ...zc.lounge,    str: 0.35 };
+      if (d.status === "error")                            return { ...zc.debug,     str: 0.70 };
+      if (d.totalMessages < 5)                            return { ...zc.lobby,     str: 0.60 };
+      if (d.status === "busy" && d.role === "master")     return { ...zc.meeting,   str: 0.55 };
+      if (d.status === "busy")                            return { ...zc.workspace, str: 0.55 };
+      if (d.role === "master")                            return { ...zc.meeting,   str: 0.45 };
+      if (d.status === "active" && d.totalMessages > 20) return { ...zc.chat,      str: 0.40 };
+      if (d.status === "idle")                            return { ...zc.lounge,    str: 0.50 };
+      if (d.status === "active")                          return { ...zc.workspace, str: 0.40 };
       return null;
     }
 
@@ -411,8 +412,12 @@ export function NetworkGraph() {
       for (const d of nodes) {
         const t = getZoneTarget(d);
         if (!t) continue;
-        d.vx = (d.vx ?? 0) + (t.cx - (d.x ?? 0)) * alpha * t.str;
-        d.vy = (d.vy ?? 0) + (t.cy - (d.y ?? 0)) * alpha * t.str;
+        // Small per-node spread offset so multiple agents in the same zone don't stack
+        const idx = d.index ?? 0;
+        const spreadX = (idx % 3 - 1) * 28;
+        const spreadY = (Math.floor(idx / 3) % 2 - 0.5) * 22;
+        d.vx = (d.vx ?? 0) + (t.cx + spreadX - (d.x ?? 0)) * alpha * t.str;
+        d.vy = (d.vy ?? 0) + (t.cy + spreadY - (d.y ?? 0)) * alpha * t.str;
       }
     }
 
@@ -434,9 +439,9 @@ export function NetworkGraph() {
           .id((d) => d.id)
           .distance(120)
       )
-      .force("charge", d3.forceManyBody().strength(-280))
-      .force("center", d3.forceCenter(width / 2, height / 2).strength(0.04))
-      .force("collision", d3.forceCollide<AgentNode>((d) => nodeHalf(d) + 14))
+      .force("charge", d3.forceManyBody().strength(-320))
+      // No forceCenter — zone affinity anchors positions; center force fights it
+      .force("collision", d3.forceCollide<AgentNode>((d) => nodeHalf(d) + 16))
       .force("cluster",      clusterForce      as unknown as d3.Force<AgentNode, AgentLink>)
       .force("zoneAffinity", zoneAffinityForce as unknown as d3.Force<AgentNode, AgentLink>);
 
