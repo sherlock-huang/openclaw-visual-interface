@@ -398,13 +398,14 @@ export function NetworkGraph() {
     function getZoneTarget(d: AgentNode): { cx: number; cy: number; str: number } | null {
       const zc = zoneCenters;
       if (d.status === "error")                            return { ...zc.debug,     str: 0.70 };
-      if (d.totalMessages < 5)                            return { ...zc.lobby,     str: 0.60 };
+      // LOBBY: only brand-new agents with 0 messages (staging area)
+      if (d.totalMessages === 0)                          return { ...zc.lobby,     str: 0.55 };
       if (d.status === "busy" && d.role === "master")     return { ...zc.meeting,   str: 0.55 };
       if (d.status === "busy")                            return { ...zc.workspace, str: 0.55 };
       if (d.role === "master")                            return { ...zc.meeting,   str: 0.45 };
       if (d.status === "active" && d.totalMessages > 20) return { ...zc.chat,      str: 0.40 };
+      if (d.status === "active")                          return { ...zc.workspace, str: 0.45 };
       if (d.status === "idle")                            return { ...zc.lounge,    str: 0.50 };
-      if (d.status === "active")                          return { ...zc.workspace, str: 0.40 };
       return null;
     }
 

@@ -17,6 +17,8 @@ interface NetworkState {
     completedTransfers: number;
     activeLinks: number;
   };
+  // IDs of offline agents the user explicitly cleared; suppressed for 120s
+  clearedOfflineIds: Map<string, number>;
 }
 
 interface NetworkActions {
@@ -32,9 +34,10 @@ interface NetworkActions {
   setServerUrl: (url: string) => void;
   setStats: (stats: NetworkState["stats"]) => void;
   updateNetworkSnapshot: (data: { agents: Agent[]; links: AgentLink[] }) => void;
+  markOfflineCleared: (ids: string[]) => void;
 }
 
-export const useNetworkStore = create<NetworkState & NetworkActions>((set) => ({
+export const useNetworkStore = create<NetworkState & NetworkActions>((set, get) => ({
   agents: [],
   links: [],
   messages: [],
@@ -44,10 +47,16 @@ export const useNetworkStore = create<NetworkState & NetworkActions>((set) => ({
   isConnected: false,
   serverUrl: process.env.NEXT_PUBLIC_SERVER_URL ?? "http://localhost:3211",
   stats: { activeAgents: 0, totalMessages: 0, totalExperiences: 0, completedTransfers: 0, activeLinks: 0 },
+  clearedOfflineIds: new Map(),
 
   setAgents: (agents) => set({ agents }),
   upsertAgent: (agent) =>
     set((state) => {
+      // Don't resurface an agent the user just cleared as offline
+      const cleared = state.clearedOfflineIds.get(agent.id);
+      if (cleared && agent.status === "offline" && Date.now() - cleared < 120_000) {
+        return {};
+      }
       const exists = state.agents.findIndex((a) => a.id === agent.id);
       if (exists >= 0) {
         const next = [...state.agents];
@@ -76,5 +85,26 @@ export const useNetworkStore = create<NetworkState & NetworkActions>((set) => ({
   setConnected: (isConnected) => set({ isConnected }),
   setServerUrl: (serverUrl) => set({ serverUrl }),
   setStats: (stats) => set({ stats }),
-  updateNetworkSnapshot: ({ agents, links }) => set({ agents, links }),
+
+  updateNetworkSnapshot: ({ agents, links }) => {
+    const now = Date.now();
+    const cleared = get().clearedOfflineIds;
+    // Prune expired suppressions
+    const freshCleared = new Map<string, number>();
+    cleared.forEach((ts, id) => { if (now - ts < 120_000) freshCleared.set(id, ts); });
+    // Filter out offline agents the user cleared (within suppression window)
+    const filtered = agents.filter(
+      (a) => !(a.status === "offline" && freshCleared.has(a.id))
+    );
+    set({ agents: filtered, links, clearedOfflineIds: freshCleared });
+  },
+
+  markOfflineCleared: (ids: string[]) => {
+    set((state) => {
+      const next = new Map(state.clearedOfflineIds);
+      const now = Date.now();
+      ids.forEach((id) => next.set(id, now));
+      return { clearedOfflineIds: next };
+    });
+  },
 }));

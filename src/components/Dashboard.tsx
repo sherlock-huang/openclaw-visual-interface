@@ -189,9 +189,10 @@ export function Dashboard() {
   }
 
   async function handleClearOffline() {
+    const offlineIds = agents.filter((a) => a.status === "offline").map((a) => a.id);
     try {
       await fetch(`${serverUrl}/api/agents/offline`, { method: "DELETE" });
-      // Remove offline agents from local state immediately
+      useNetworkStore.getState().markOfflineCleared(offlineIds);
       useNetworkStore.setState((s) => ({
         agents: s.agents.filter((a) => a.status !== "offline"),
       }));
