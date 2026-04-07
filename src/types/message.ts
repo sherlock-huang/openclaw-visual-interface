@@ -64,6 +64,21 @@ export interface ClientToServerEvents {
     cb: (success: boolean, agentId: string) => void
   ) => void;
   "agent:heartbeat": (agentId: string) => void;
+  /**
+   * Agent 主动上报自己的状态变化。
+   * Server 收到后应更新 agent 记录并向所有连接的 Portal 广播 agent:updated。
+   *
+   * 调用时机（SDK 侧）：
+   *   - 收到 task 消息开始处理前  → emit("agent:status", id, "busy",  { task: "..." })
+   *   - 处理完成/返回结果后       → emit("agent:status", id, "idle",  {})
+   *   - 发生未捕获异常时           → emit("agent:status", id, "error", { reason: err.message })
+   *   - 空闲等待新任务时           → emit("agent:status", id, "idle",  {})
+   */
+  "agent:status": (
+    agentId: string,
+    status: import("./agent").AgentStatus,
+    meta?: Record<string, unknown>
+  ) => void;
   "message:send": (message: Omit<Message, "id" | "createdAt" | "status">) => void;
   "experience:share": (transfer: Omit<ExperienceTransfer, "id" | "createdAt">) => void;
   "network:request": () => void;

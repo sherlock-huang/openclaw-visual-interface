@@ -221,13 +221,63 @@ function connectGateway(portalSock) {
   gatewayWs = ws;
 }
 
+// ── 状态上报 ─────────────────────────────────────────────────
+let currentStatus = "active";
+
+async function reportStatus(status, meta = {}) {
+  if (status === currentStatus) return;
+  currentStatus = status;
+  log(`状态变更: ${status}${meta.task ? ` (${meta.task})` : ""}`);
+
+  // 1. Socket emit — 若 Server 支持 agent:status 即时生效
+  if (portalSocket?.connected) {
+    portalSocket.emit("agent:status", AGENT_ID, status, meta);
+  }
+
+  // 2. REST PATCH — 标准 HTTP 兜底，大多数 Server 实现支持
+  try {
+    await fetch(`${PORTAL_URL}/api/agents/${AGENT_ID}/status`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status, ...meta }),
+    });
+  } catch { /* server 可能不支持，静默忽略 */ }
+}
+
 // ── Gateway 事件处理 ─────────────────────────────────────────
 function handleGatewayEvent(event, portalSock) {
   if (!portalSock?.connected) return;
 
-  // 转发消息事件到 Portal
-  if (event.type === "message" || event.method === "message") {
-    const content = event.content || event.text || JSON.stringify(event);
+  const evType = event.type || event.method || "";
+  const content = event.content || event.text || "";
+
+  // ── 状态推断 ──────────────────────────────────────────────
+  // 开始处理任务
+  if (
+    evType === "task_start" || evType === "processing" ||
+    evType === "tool_use" || evType === "thinking" ||
+    (evType === "message" && /^(开始|处理|executing|running|task)/i.test(content))
+  ) {
+    reportStatus("busy", { task: content.slice(0, 80) });
+  }
+  // 任务完成 / 空闲
+  else if (
+    evType === "task_complete" || evType === "task_done" ||
+    evType === "idle" || evType === "ready" ||
+    (evType === "message" && /^(完成|done|finished|result|idle)/i.test(content))
+  ) {
+    reportStatus("idle");
+  }
+  // 出错
+  else if (
+    evType === "error" || evType === "exception" ||
+    (evType === "message" && /^(error|错误|失败|exception)/i.test(content))
+  ) {
+    reportStatus("error", { reason: content.slice(0, 120) });
+  }
+
+  // ── 转发消息事件到 Portal ──────────────────────────────────
+  if (evType === "message" || evType === "chat") {
     portalSock.emit("message:send", {
       type: "chat",
       fromId: AGENT_ID,
