@@ -10774,6 +10774,23 @@ log(`Agent: ${AGENT_NAME} (${AGENT_ID})`);
 log(`Portal: ${PORTAL_URL}`);
 var portalSocket = null;
 var registered = false;
+var currentStatus = "active";
+async function reportStatus(status, meta) {
+  if (!meta) meta = {};
+  if (status === currentStatus) return;
+  currentStatus = status;
+  log(`\u72B6\u6001\u53D8\u66F4: ${status}${meta.task ? ` (${meta.task})` : ""}`);
+  if (portalSocket?.connected) {
+    portalSocket.emit("agent:status", AGENT_ID, status, meta);
+  }
+  try {
+    await fetch(`${PORTAL_URL}/api/agents/${AGENT_ID}/status`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status, ...meta })
+    });
+  } catch {}
+}
 function connectPortal() {
   log("\u8FDE\u63A5 Portal \u670D\u52A1\u5668...");
   const sock = io(PORTAL_URL, {
@@ -10864,10 +10881,28 @@ function connectGateway(portalSock) {
   gatewayWs = ws;
 }
 function handleGatewayEvent(event, portalSock) {
-  if (!portalSock?.connected)
-    return;
-  if (event.type === "message" || event.method === "message") {
-    const content = event.content || event.text || JSON.stringify(event);
+  if (!portalSock?.connected) return;
+  const evType = event.type || event.method || "";
+  const content = event.content || event.text || "";
+  if (
+    evType === "task_start" || evType === "processing" ||
+    evType === "tool_use" || evType === "thinking" ||
+    (evType === "message" && /^(\u5F00\u59CB|\u5904\u7406|executing|running|task)/i.test(content))
+  ) {
+    reportStatus("busy", { task: content.slice(0, 80) });
+  } else if (
+    evType === "task_complete" || evType === "task_done" ||
+    evType === "idle" || evType === "ready" ||
+    (evType === "message" && /^(\u5B8C\u6210|done|finished|result|idle)/i.test(content))
+  ) {
+    reportStatus("idle");
+  } else if (
+    evType === "error" || evType === "exception" ||
+    (evType === "message" && /^(error|\u9519\u8BEF|\u5931\u8D25|exception)/i.test(content))
+  ) {
+    reportStatus("error", { reason: content.slice(0, 120) });
+  }
+  if (evType === "message" || evType === "chat") {
     portalSock.emit("message:send", {
       type: "chat",
       fromId: AGENT_ID,
