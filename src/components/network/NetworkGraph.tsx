@@ -58,6 +58,160 @@ export function NetworkGraph() {
         .on("zoom", (ev) => g.attr("transform", ev.transform))
     );
 
+    // ── Office Zones (drawn first, behind nodes) ───────────────
+    const zoneG = g.append("g").attr("class", "zones");
+
+    // Zone definitions: [id, label, x, y, w, h, color, emoji, decor_type]
+    const zw = width * 0.32;
+    const zh = height * 0.38;
+    const pad = 20;
+    const zones = [
+      {
+        id: "workspace",
+        label: "WORKSPACE",
+        x: width / 2 + pad,
+        y: pad,
+        w: zw,
+        h: zh,
+        color: "#00ff41",
+        emoji: "💻",
+        decor: "desks",
+      },
+      {
+        id: "chat",
+        label: "CHAT ZONE",
+        x: width / 2 - zw - pad,
+        y: pad,
+        w: zw,
+        h: zh,
+        color: "#00ffff",
+        emoji: "💬",
+        decor: "bubbles",
+      },
+      {
+        id: "lounge",
+        label: "LOUNGE",
+        x: width / 2 - zw - pad,
+        y: height / 2 + pad,
+        w: zw,
+        h: zh,
+        color: "#ff8c00",
+        emoji: "☕",
+        decor: "couch",
+      },
+      {
+        id: "meeting",
+        label: "MEETING ROOM",
+        x: width / 2 + pad,
+        y: height / 2 + pad,
+        w: zw,
+        h: zh,
+        color: "#cc44ff",
+        emoji: "📋",
+        decor: "table",
+      },
+    ];
+
+    for (const z of zones) {
+      const zg = zoneG.append("g").attr("class", `zone zone-${z.id}`);
+
+      // Zone background
+      zg.append("rect")
+        .attr("x", z.x)
+        .attr("y", z.y)
+        .attr("width", z.w)
+        .attr("height", z.h)
+        .attr("fill", z.color + "08")
+        .attr("stroke", z.color + "55")
+        .attr("stroke-width", 2)
+        .attr("stroke-dasharray", "6 3")
+        .attr("rx", 2);
+
+      // Corner pixel accents (top-left, top-right, bottom-left, bottom-right)
+      const corners = [
+        [z.x, z.y],
+        [z.x + z.w - 8, z.y],
+        [z.x, z.y + z.h - 8],
+        [z.x + z.w - 8, z.y + z.h - 8],
+      ];
+      for (const [cx, cy] of corners) {
+        zg.append("rect")
+          .attr("x", cx)
+          .attr("y", cy)
+          .attr("width", 8)
+          .attr("height", 8)
+          .attr("fill", z.color + "99");
+      }
+
+      // Zone label (top-left inside border)
+      zg.append("text")
+        .attr("x", z.x + 14)
+        .attr("y", z.y + 16)
+        .attr("font-family", '"Press Start 2P", monospace')
+        .attr("font-size", "7px")
+        .attr("fill", z.color + "cc")
+        .text(`${z.emoji} ${z.label}`);
+
+      // Zone pixel decorations
+      const mx = z.x + z.w / 2;
+      const my = z.y + z.h / 2;
+
+      if (z.decor === "desks") {
+        // Two pixel desks
+        for (let i = 0; i < 2; i++) {
+          const dx = mx - 30 + i * 46;
+          const dy = my - 10;
+          zg.append("rect").attr("x", dx).attr("y", dy).attr("width", 28).attr("height", 14).attr("fill", "#1a2a1a").attr("stroke", z.color + "44").attr("stroke-width", 1);
+          zg.append("rect").attr("x", dx + 4).attr("y", dy + 4).attr("width", 8).attr("height", 6).attr("fill", z.color + "33");
+          // monitor
+          zg.append("rect").attr("x", dx + 18).attr("y", dy - 8).attr("width", 10).attr("height", 8).attr("fill", "#0a1a2a").attr("stroke", z.color + "66").attr("stroke-width", 1);
+          zg.append("rect").attr("x", dx + 20).attr("y", dy - 6).attr("width", 6).attr("height", 4).attr("fill", z.color + "44");
+        }
+      } else if (z.decor === "bubbles") {
+        // Three speech bubbles of different sizes
+        const bubs = [
+          { x: mx - 28, y: my - 20, w: 22, h: 14 },
+          { x: mx + 4,  y: my - 14, w: 28, h: 16 },
+          { x: mx - 20, y: my + 8,  w: 18, h: 12 },
+        ];
+        for (const b of bubs) {
+          zg.append("rect").attr("x", b.x).attr("y", b.y).attr("width", b.w).attr("height", b.h).attr("rx", 3).attr("fill", z.color + "22").attr("stroke", z.color + "55").attr("stroke-width", 1);
+          // tail pixel
+          zg.append("rect").attr("x", b.x + 4).attr("y", b.y + b.h).attr("width", 4).attr("height", 4).attr("fill", z.color + "55");
+          // text lines
+          zg.append("rect").attr("x", b.x + 4).attr("y", b.y + 4).attr("width", b.w - 8).attr("height", 2).attr("fill", z.color + "66");
+          if (b.h > 12) zg.append("rect").attr("x", b.x + 4).attr("y", b.y + 8).attr("width", b.w - 12).attr("height", 2).attr("fill", z.color + "44");
+        }
+      } else if (z.decor === "couch") {
+        // Pixel couch: seat + back + armrests
+        zg.append("rect").attr("x", mx - 30).attr("y", my - 4).attr("width", 60).attr("height", 16).attr("fill", "#2a1a08").attr("stroke", z.color + "55").attr("stroke-width", 1); // seat
+        zg.append("rect").attr("x", mx - 30).attr("y", my - 16).attr("width", 60).attr("height", 12).attr("fill", "#1a1008").attr("stroke", z.color + "44").attr("stroke-width", 1); // back
+        zg.append("rect").attr("x", mx - 36).attr("y", my - 14).attr("width", 8).attr("height", 20).attr("fill", "#2a1a08").attr("stroke", z.color + "44").attr("stroke-width", 1); // left arm
+        zg.append("rect").attr("x", mx + 28).attr("y", my - 14).attr("width", 8).attr("height", 20).attr("fill", "#2a1a08").attr("stroke", z.color + "44").attr("stroke-width", 1); // right arm
+        // cushion lines
+        zg.append("rect").attr("x", mx - 2).attr("y", my - 4).attr("width", 4).attr("height", 16).attr("fill", z.color + "22");
+        // coffee table
+        zg.append("rect").attr("x", mx - 18).attr("y", my + 18).attr("width", 36).attr("height", 10).attr("fill", "#1a1408").attr("stroke", z.color + "44").attr("stroke-width", 1);
+        zg.append("circle").attr("cx", mx).attr("cy", my + 23).attr("r", 4).attr("fill", z.color + "33");
+      } else if (z.decor === "table") {
+        // Round meeting table + 4 chairs
+        zg.append("circle").attr("cx", mx).attr("cy", my).attr("r", 20).attr("fill", "#1a0a2a").attr("stroke", z.color + "66").attr("stroke-width", 2);
+        // chairs (4 directions)
+        const chairPos = [
+          [mx, my - 28], [mx, my + 28], [mx - 28, my], [mx + 28, my],
+        ];
+        for (const [cx2, cy2] of chairPos) {
+          zg.append("rect")
+            .attr("x", cx2 - 6).attr("y", cy2 - 6)
+            .attr("width", 12).attr("height", 12)
+            .attr("fill", "#1a0a2a").attr("stroke", z.color + "55").attr("stroke-width", 1);
+        }
+        // papers on table
+        zg.append("rect").attr("x", mx - 8).attr("y", my - 6).attr("width", 10).attr("height", 14).attr("fill", "#ffffff11").attr("stroke", z.color + "44").attr("stroke-width", 1);
+        zg.append("rect").attr("x", mx + 2).attr("y", my - 4).attr("width", 8).attr("height", 10).attr("fill", "#ffffff0d").attr("stroke", z.color + "33").attr("stroke-width", 1);
+      }
+    }
+
     // ── Data ──────────────────────────────────────────────────
     const nodes: AgentNode[] = agents.map((a) => ({ ...a }));
     const resolvedLinks = links.map((l) => ({
