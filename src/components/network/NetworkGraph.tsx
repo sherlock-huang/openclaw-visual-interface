@@ -718,13 +718,37 @@ export function NetworkGraph() {
           .attr("cy", (src.y ?? 0) + ((tgt.y ?? 0) - (src.y ?? 0)) * t);
       });
 
-      // 2. Float bob (idle: slow+large, busy: fast+tiny, others: medium)
+      // 2. U7: Zone-specific float animations (dx + dy per zone character)
       floatG.each(function (this: SVGGElement, d: AgentNode) {
-        const amp    = d.status === "idle" ? 4.5 : d.status === "busy" ? 1.2 : 2.5;
-        const period = d.status === "idle" ? 2800 : d.status === "busy" ? 700  : 1800;
-        const phase  = (d.index ?? 0) * 1.1;  // per-node phase offset
-        const dy = Math.sin((now / period) * Math.PI * 2 + phase) * amp;
-        d3.select(this).attr("transform", `translate(0,${dy})`);
+        const ph = (d.index ?? 0) * 1.1;  // per-node phase offset
+        let dx = 0, dy = 0;
+
+        if (d.status === "idle") {
+          // Lounge: lazy slow float + wide left-right sway (懒洋洋)
+          dy = Math.sin((now / 2800) * Math.PI * 2 + ph) * 4.5;
+          dx = Math.sin((now / 3400) * Math.PI * 2 + ph * 0.7) * 8;
+        } else if (d.status === "busy") {
+          // Workspace: fast Y bob + rapid X micro-jitter (模拟打字手抖)
+          dy = Math.sin((now / 700)  * Math.PI * 2 + ph) * 1.2;
+          dx = Math.sin((now / 140)  * Math.PI * 2 + ph * 3.1) * 1.6;
+        } else if (d.role === "master") {
+          // Meeting Room: slow circular micro-orbit (讨论中转圈)
+          dy = Math.sin((now / 4200) * Math.PI * 2 + ph) * 3;
+          dx = Math.cos((now / 4200) * Math.PI * 2 + ph) * 3;
+        } else if (d.status === "active" && d.totalMessages > 20) {
+          // Chat Zone: conversational lean side-to-side (聊天中摇头)
+          dy = Math.sin((now / 1800) * Math.PI * 2 + ph) * 2.5;
+          dx = Math.sin((now / 1400) * Math.PI * 2 + ph * 1.4) * 5;
+        } else if (d.status === "error") {
+          // Debug: nervous rapid small shake (出错焦虑)
+          dy = Math.sin((now / 180)  * Math.PI * 2 + ph) * 2;
+          dx = Math.cos((now / 120)  * Math.PI * 2 + ph * 2) * 2;
+        } else {
+          // Default medium float
+          dy = Math.sin((now / 1800) * Math.PI * 2 + ph) * 2.5;
+        }
+
+        d3.select(this).attr("transform", `translate(${dx},${dy})`);
       });
 
       // 3. Busy pulse ring: expands + fades outward, loops every 1.2s
