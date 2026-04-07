@@ -61,16 +61,46 @@ export function NetworkGraph() {
     // ── Office Zones (drawn first, behind nodes) ───────────────
     const zoneG = g.append("g").attr("class", "zones");
 
-    // Zone definitions: [id, label, x, y, w, h, color, emoji, decor_type]
-    const zw = width * 0.32;
-    const zh = height * 0.38;
+    const zw  = width  * 0.32;
+    const zh  = height * 0.36;
     const pad = 20;
+    const topY = 68;                   // main top zones start below Lobby
+    const botY = height / 2 + pad;
+
+    // Small Lobby strip (top-center) and Debug Corner (bottom-center)
+    const lobbyW = 162, lobbyH = 52;
+    const debugW = 144, debugH = 56;
+
     const zones = [
+      // ── special small rooms ──
+      {
+        id: "lobby",
+        label: "LOBBY",
+        x: width / 2 - lobbyW / 2,
+        y: 10,
+        w: lobbyW,
+        h: lobbyH,
+        color: "#88aaff",
+        emoji: "🚪",
+        decor: "lobby",
+      },
+      {
+        id: "debug",
+        label: "DEBUG",
+        x: width / 2 - debugW / 2,
+        y: height - debugH - 10,
+        w: debugW,
+        h: debugH,
+        color: "#ff2244",
+        emoji: "🔧",
+        decor: "debug",
+      },
+      // ── main 4 zones ──
       {
         id: "workspace",
         label: "WORKSPACE",
         x: width / 2 + pad,
-        y: pad,
+        y: topY,
         w: zw,
         h: zh,
         color: "#00ff41",
@@ -81,7 +111,7 @@ export function NetworkGraph() {
         id: "chat",
         label: "CHAT ZONE",
         x: width / 2 - zw - pad,
-        y: pad,
+        y: topY,
         w: zw,
         h: zh,
         color: "#00ffff",
@@ -92,7 +122,7 @@ export function NetworkGraph() {
         id: "lounge",
         label: "LOUNGE",
         x: width / 2 - zw - pad,
-        y: height / 2 + pad,
+        y: botY,
         w: zw,
         h: zh,
         color: "#ff8c00",
@@ -103,7 +133,7 @@ export function NetworkGraph() {
         id: "meeting",
         label: "MEETING ROOM",
         x: width / 2 + pad,
-        y: height / 2 + pad,
+        y: botY,
         w: zw,
         h: zh,
         color: "#cc44ff",
@@ -196,7 +226,6 @@ export function NetworkGraph() {
       } else if (z.decor === "table") {
         // Round meeting table + 4 chairs
         zg.append("circle").attr("cx", mx).attr("cy", my).attr("r", 20).attr("fill", "#1a0a2a").attr("stroke", z.color + "66").attr("stroke-width", 2);
-        // chairs (4 directions)
         const chairPos = [
           [mx, my - 28], [mx, my + 28], [mx - 28, my], [mx + 28, my],
         ];
@@ -206,10 +235,41 @@ export function NetworkGraph() {
             .attr("width", 12).attr("height", 12)
             .attr("fill", "#1a0a2a").attr("stroke", z.color + "55").attr("stroke-width", 1);
         }
-        // papers on table
         zg.append("rect").attr("x", mx - 8).attr("y", my - 6).attr("width", 10).attr("height", 14).attr("fill", "#ffffff11").attr("stroke", z.color + "44").attr("stroke-width", 1);
         zg.append("rect").attr("x", mx + 2).attr("y", my - 4).attr("width", 8).attr("height", 10).attr("fill", "#ffffff0d").attr("stroke", z.color + "33").attr("stroke-width", 1);
+      } else if (z.decor === "lobby") {
+        // Pixel door + welcome mat
+        // door frame
+        zg.append("rect").attr("x", mx - 8).attr("y", my - 14).attr("width", 16).attr("height", 22).attr("fill", "#0a0a1a").attr("stroke", z.color + "88").attr("stroke-width", 2);
+        // door panel
+        zg.append("rect").attr("x", mx - 5).attr("y", my - 11).attr("width", 10).attr("height", 16).attr("fill", z.color + "22").attr("stroke", z.color + "55").attr("stroke-width", 1);
+        // doorknob
+        zg.append("circle").attr("cx", mx + 3).attr("cy", my - 2).attr("r", 2).attr("fill", z.color + "cc");
+        // welcome mat (3 stripes)
+        for (let si = 0; si < 3; si++) {
+          zg.append("rect").attr("x", mx - 12 + si * 2).attr("y", my + 10).attr("width", 20 - si * 4).attr("height", 4).attr("fill", z.color + (si === 0 ? "44" : si === 1 ? "33" : "22"));
+        }
+      } else if (z.decor === "debug") {
+        // Warning triangle (pixel style)
+        const tp = [[mx, my - 16], [mx - 14, my + 8], [mx + 14, my + 8]];
+        zg.append("polygon")
+          .attr("points", tp.map(([px, py]) => `${px},${py}`).join(" "))
+          .attr("fill", z.color + "22")
+          .attr("stroke", z.color + "99")
+          .attr("stroke-width", 2);
+        // exclamation mark pixels
+        zg.append("rect").attr("x", mx - 2).attr("y", my - 10).attr("width", 4).attr("height", 10).attr("fill", z.color + "cc");
+        zg.append("rect").attr("x", mx - 2).attr("y", my + 2).attr("width", 4).attr("height", 4).attr("fill", z.color + "cc");
+        // warning light (blinking effect via low opacity)
+        zg.append("circle").attr("cx", mx - 18).attr("cy", my - 10).attr("r", 4).attr("fill", z.color + "66").attr("stroke", z.color).attr("stroke-width", 1);
+        zg.append("circle").attr("cx", mx + 18).attr("cy", my - 10).attr("r", 4).attr("fill", z.color + "33").attr("stroke", z.color).attr("stroke-width", 1);
       }
+    }
+
+    // ── Zone centers for affinity force ───────────────────────
+    const zoneCenters: Record<string, { cx: number; cy: number }> = {};
+    for (const z of zones) {
+      zoneCenters[z.id] = { cx: z.x + z.w / 2, cy: z.y + z.h / 2 };
     }
 
     // ── Data ──────────────────────────────────────────────────
@@ -232,26 +292,45 @@ export function NetworkGraph() {
       }
     }
 
-    // ── Host-cluster custom force ──────────────────────────────
+    // ── Host-cluster custom force (weak, keeps same-host agents near) ─
     function clusterForce(alpha: number) {
       const sum = new Map<string, { x: number; y: number; count: number }>();
       for (const d of nodes) {
         const s = sum.get(d.host);
-        if (!s) {
-          sum.set(d.host, { x: d.x ?? 0, y: d.y ?? 0, count: 1 });
-        } else {
-          s.x += d.x ?? 0;
-          s.y += d.y ?? 0;
-          s.count++;
-        }
+        if (!s) sum.set(d.host, { x: d.x ?? 0, y: d.y ?? 0, count: 1 });
+        else { s.x += d.x ?? 0; s.y += d.y ?? 0; s.count++; }
       }
       for (const d of nodes) {
         const s = sum.get(d.host);
         if (!s || s.count <= 1) continue;
-        const cx = s.x / s.count;
-        const cy = s.y / s.count;
-        d.vx = (d.vx ?? 0) + (cx - (d.x ?? 0)) * alpha * 0.1;
-        d.vy = (d.vy ?? 0) + (cy - (d.y ?? 0)) * alpha * 0.1;
+        d.vx = (d.vx ?? 0) + (s.x / s.count - (d.x ?? 0)) * alpha * 0.06;
+        d.vy = (d.vy ?? 0) + (s.y / s.count - (d.y ?? 0)) * alpha * 0.06;
+      }
+    }
+
+    // ── Zone affinity force ───────────────────────────────────
+    // Priority: error > newly-arrived > busy(master→meeting, else→workspace)
+    //           > master(idle→meeting) > active+chatty→chat > idle→lounge
+    function getZoneTarget(d: AgentNode): { cx: number; cy: number; str: number } | null {
+      const zc = zoneCenters;
+      if (d.status === "error")   return { ...zc.debug,     str: 0.38 };
+      if (d.totalMessages < 5)    return { ...zc.lobby,     str: 0.28 };
+      if (d.status === "busy" && d.role === "master")
+                                  return { ...zc.meeting,   str: 0.22 };
+      if (d.status === "busy")    return { ...zc.workspace, str: 0.22 };
+      if (d.role === "master")    return { ...zc.meeting,   str: 0.14 };
+      if (d.status === "active" && d.totalMessages > 20)
+                                  return { ...zc.chat,      str: 0.14 };
+      if (d.status === "idle")    return { ...zc.lounge,    str: 0.18 };
+      return null;
+    }
+
+    function zoneAffinityForce(alpha: number) {
+      for (const d of nodes) {
+        const t = getZoneTarget(d);
+        if (!t) continue;
+        d.vx = (d.vx ?? 0) + (t.cx - (d.x ?? 0)) * alpha * t.str;
+        d.vy = (d.vy ?? 0) + (t.cy - (d.y ?? 0)) * alpha * t.str;
       }
     }
 
@@ -265,12 +344,13 @@ export function NetworkGraph() {
             resolvedLinks as { source: string; target: string }[]
           )
           .id((d) => d.id)
-          .distance(140)
+          .distance(120)
       )
-      .force("charge", d3.forceManyBody().strength(-350))
-      .force("center", d3.forceCenter(width / 2, height / 2))
+      .force("charge", d3.forceManyBody().strength(-280))
+      .force("center", d3.forceCenter(width / 2, height / 2).strength(0.04))
       .force("collision", d3.forceCollide<AgentNode>((d) => nodeHalf(d) + 14))
-      .force("cluster", clusterForce as unknown as d3.Force<AgentNode, AgentLink>);
+      .force("cluster",  clusterForce      as unknown as d3.Force<AgentNode, AgentLink>)
+      .force("zoneAffinity", zoneAffinityForce as unknown as d3.Force<AgentNode, AgentLink>);
 
     // ── Links ─────────────────────────────────────────────────
     const isLinkActive = (d: typeof resolvedLinks[0]) => {
