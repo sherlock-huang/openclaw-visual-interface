@@ -27,9 +27,84 @@ function nodeHalf(d: AgentNode): number {
   return 20 + Math.min(Math.log1p(d.totalMessages) * 4, 18);
 }
 
+// ── U5: Effect system ─────────────────────────────────────────
+interface EnvelopeEffect {
+  type: "envelope";
+  sx: number; sy: number;
+  tx: number; ty: number;
+  t0: number; dur: number;
+  color: string;
+}
+interface BurstEffect {
+  type: "burst";
+  cx: number; cy: number;
+  pts: Array<{ vx: number; vy: number; color: string }>;
+  t0: number; dur: number;
+}
+type Effect = EnvelopeEffect | BurstEffect;
+
+function easeInOut(t: number) {
+  return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+}
+
+function renderEffects(canvas: HTMLCanvasElement, effects: Effect[], now: number) {
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  for (const e of effects) {
+    const p = Math.min((now - e.t0) / e.dur, 1);
+    if (e.type === "envelope") {
+      const pe = easeInOut(p);
+      const x  = e.sx + (e.tx - e.sx) * pe;
+      const y  = e.sy + (e.ty - e.sy) * pe - Math.sin(p * Math.PI) * 36;
+      const alpha = p < 0.75 ? 1 : 1 - (p - 0.75) / 0.25;
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = "#001a00";
+      ctx.strokeStyle = e.color;
+      ctx.lineWidth = 1.5;
+      ctx.fillRect(x - 7, y - 5, 14, 10);
+      ctx.strokeRect(x - 7, y - 5, 14, 10);
+      // envelope V flap
+      ctx.beginPath();
+      ctx.moveTo(x - 7, y - 5);
+      ctx.lineTo(x, y + 1);
+      ctx.lineTo(x + 7, y - 5);
+      ctx.stroke();
+    } else {
+      for (const pt of e.pts) {
+        const px = e.cx + pt.vx * p * 44;
+        const py = e.cy + pt.vy * p * 44;
+        ctx.globalAlpha = Math.max(0, 1 - p * 1.4);
+        ctx.fillStyle = pt.color;
+        ctx.fillRect(px - 2, py - 2, 4, 4);
+      }
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
+const BURST_COLORS = ["#cc44ff", "#ff44cc", "#4488ff", "#00ffff", "#00ff41"];
+function makeBurst(cx: number, cy: number): BurstEffect {
+  const pts = Array.from({ length: 8 }, (_, i) => {
+    const angle = (i / 8) * Math.PI * 2 + Math.random() * 0.4;
+    return {
+      vx: Math.cos(angle),
+      vy: Math.sin(angle),
+      color: BURST_COLORS[i % BURST_COLORS.length],
+    };
+  });
+  return { type: "burst", cx, cy, pts, t0: Date.now(), dur: 650 };
+}
+
 export function NetworkGraph() {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const tipRef = useRef<HTMLDivElement>(null);
+  const svgRef    = useRef<SVGSVGElement>(null);
+  const tipRef    = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const effectsRef      = useRef<Effect[]>([]);
+  const nodePositionsRef = useRef(new Map<string, { x: number; y: number }>());
+  const zoomRef          = useRef({ x: 0, y: 0, k: 1 });
+  const prevDataRef      = useRef(new Map<string, { msgs: number; xp: number }>());
+  const prevLinkMsgsRef  = useRef(new Map<string, number>());
   const { agents, links, selectedAgentId, selectAgent } = useNetworkStore();
 
   const draw = useCallback(() => {
@@ -55,7 +130,11 @@ export function NetworkGraph() {
     svg.call(
       d3.zoom<SVGSVGElement, unknown>()
         .scaleExtent([0.2, 4])
-        .on("zoom", (ev) => g.attr("transform", ev.transform))
+        .on("zoom", (ev) => {
+          g.attr("transform", ev.transform);
+          const t = ev.transform;
+          zoomRef.current = { x: t.x, y: t.y, k: t.k };
+        })
     );
 
     // ── Office Zones (drawn first, behind nodes) ───────────────
@@ -570,6 +649,8 @@ export function NetworkGraph() {
         .attr("y2", (d) => ((d as unknown as { target: AgentNode }).target.y ?? 0));
 
       nodeG.attr("transform", (d) => `translate(${d.x ?? 0},${d.y ?? 0})`);
+      // expose positions for effect system
+      nodes.forEach((d) => nodePositionsRef.current.set(d.id, { x: d.x ?? 0, y: d.y ?? 0 }));
     });
 
     // ── Unified rAF animation loop ────────────────────────────
@@ -634,12 +715,91 @@ export function NetworkGraph() {
     return cleanup;
   }, [draw]);
 
+  // ── Spawn effects when agents/links data changes ────────────
+  useEffect(() => {
+    const prev = prevDataRef.current;
+    const zr = zoomRef.current;
+
+    function toScreen(sx: number, sy: number) {
+      return { x: zr.x + sx * zr.k, y: zr.y + sy * zr.k };
+    }
+
+    // XP burst: agent gained experience
+    for (const agent of agents) {
+      const p = prev.get(agent.id);
+      const pos = nodePositionsRef.current.get(agent.id);
+      if (p && pos && agent.totalExperiences > p.xp) {
+        const sc = toScreen(pos.x, pos.y);
+        effectsRef.current.push(makeBurst(sc.x, sc.y));
+      }
+      prev.set(agent.id, { msgs: agent.totalMessages, xp: agent.totalExperiences });
+    }
+
+    // Envelope: link message count increased
+    const prevLinks = prevLinkMsgsRef.current;
+    for (const link of links) {
+      const sid = typeof link.source === "string" ? link.source : (link.source as AgentNode).id;
+      const tid = typeof link.target === "string" ? link.target : (link.target as AgentNode).id;
+      const key = `${sid}->${tid}`;
+      const prevCount = prevLinks.get(key) ?? 0;
+      if (link.messageCount > prevCount) {
+        const sp = nodePositionsRef.current.get(sid);
+        const tp = nodePositionsRef.current.get(tid);
+        if (sp && tp) {
+          const ss = toScreen(sp.x, sp.y);
+          const ts = toScreen(tp.x, tp.y);
+          effectsRef.current.push({
+            type: "envelope",
+            sx: ss.x, sy: ss.y,
+            tx: ts.x, ty: ts.y,
+            t0: Date.now(), dur: 750,
+            color: "#00ffff",
+          });
+        }
+      }
+      prevLinks.set(key, link.messageCount);
+    }
+  }, [agents, links]);
+
+  // ── Canvas rAF loop for effects overlay ────────────────────
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    // Keep canvas sized to its container
+    function resize() {
+      if (!canvas) return;
+      canvas.width  = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
+    }
+    resize();
+    const ro = new ResizeObserver(resize);
+    ro.observe(canvas);
+
+    let running = true;
+    function loop() {
+      if (!running) return;
+      const now = Date.now();
+      // Remove completed effects
+      effectsRef.current = effectsRef.current.filter((e) => now - e.t0 < e.dur);
+      renderEffects(canvas!, effectsRef.current, now);
+      requestAnimationFrame(loop);
+    }
+    loop();
+    return () => { running = false; ro.disconnect(); };
+  }, []);
+
   return (
     <div className="relative w-full h-full">
       <svg
         ref={svgRef}
         className="w-full h-full bg-pixel-bg"
         style={{ minHeight: "400px" }}
+      />
+      {/* Effects canvas overlay — floats above SVG, pointer-events:none */}
+      <canvas
+        ref={canvasRef}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none", zIndex: 5 }}
       />
       {/* Hover tooltip */}
       <div
