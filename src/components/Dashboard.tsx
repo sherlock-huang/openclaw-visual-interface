@@ -33,9 +33,9 @@ function parseTags(raw: string): string[] {
 
 function StatBox({ label, value, color }: { label: string; value: number | string; color: string }) {
   return (
-    <div className="pixel-stat-box flex flex-col items-center px-4 py-2 border border-pixel-border">
-      <span className={`font-pixel text-lg ${color}`}>{value}</span>
-      <span className="font-pixel text-[7px] text-pixel-gray mt-1">{label}</span>
+    <div className="pixel-stat-box flex flex-col items-center px-4 py-2 border border-pixel-border relative overflow-hidden">
+      <span className={`font-pixel text-base leading-none ${color} text-glow-green`}>{value}</span>
+      <span className="font-pixel text-[6px] text-pixel-gray mt-1.5 tracking-wider">{label}</span>
     </div>
   );
 }
@@ -103,6 +103,19 @@ function ConnectionGuide({ serverUrl, onConnect }: { serverUrl: string; onConnec
         </p>
       </div>
     </div>
+  );
+}
+
+function SystemClock() {
+  const [time, setTime] = useState(() => new Date().toLocaleTimeString("en", { hour12: false }));
+  useEffect(() => {
+    const t = setInterval(() => setTime(new Date().toLocaleTimeString("en", { hour12: false })), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <span className="font-pixel text-[7px] text-pixel-green text-glow-green tabular-nums animate-blink" style={{ animationDuration: "2s" }}>
+      {time}
+    </span>
   );
 }
 
@@ -224,52 +237,82 @@ export function Dashboard() {
   ] as const;
 
   return (
-    <div className="flex flex-col h-screen bg-pixel-bg text-pixel-green overflow-hidden">
+    <div className="flex flex-col h-screen bg-pixel-bg text-pixel-green overflow-hidden pixel-grid-bg">
 
       {/* ── Header ── */}
-      <header className="flex items-center gap-4 px-4 py-2 border-b-2 border-pixel-green bg-pixel-surface flex-shrink-0 animate-flicker relative">
+      <header className="flex items-center gap-3 px-4 py-2 border-b-2 border-pixel-green bg-pixel-surface flex-shrink-0 animate-flicker relative">
         {/* corner accent pixels */}
-        <span className="absolute top-0 left-0 w-2 h-2 bg-pixel-green" />
-        <span className="absolute top-0 right-0 w-2 h-2 bg-pixel-green" />
-        <LobsterSprite status={isConnected ? "active" : "offline"} mood={lobsterMood} size={32} />
-        <div>
-          <h1 className="font-pixel text-[13px] text-pixel-green text-glow-green">OPENCLAW</h1>
-          <p className="font-pixel text-[7px] text-pixel-gray">MULTI-AGENT VISUAL MANAGER v0.1</p>
+        <span className="absolute top-0 left-0 w-3 h-3 bg-pixel-green opacity-90" />
+        <span className="absolute top-0 right-0 w-3 h-3 bg-pixel-green opacity-90" />
+        <span className="absolute bottom-0 left-0 w-1.5 h-1.5 bg-pixel-green opacity-40" />
+        <span className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-pixel-green opacity-40" />
+
+        {/* Logo block */}
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <LobsterSprite status={isConnected ? "active" : "offline"} mood={lobsterMood} size={36} />
+          <div>
+            <h1 className="font-pixel text-[14px] text-pixel-green text-glow-green leading-none mb-1">OPENCLAW</h1>
+            <p className="font-pixel text-[5.5px] text-pixel-gray tracking-widest">MULTI-AGENT VISUAL MANAGER v0.1</p>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 ml-4">
-          <span className={`w-2 h-2 rounded-none ${isConnected ? "bg-pixel-green animate-pulse" : "bg-pixel-red"}`} />
+        {/* Divider */}
+        <div className="w-px h-8 bg-pixel-border mx-1 flex-shrink-0" />
+
+        {/* System status pills */}
+        <div className="flex flex-col gap-1 flex-shrink-0">
+          <div className="flex items-center gap-1.5">
+            <span className={`health-dot ${isConnected ? "bg-pixel-green animate-pulse" : "bg-pixel-red animate-pulse"}`} />
+            <span className="font-pixel text-[6px] text-pixel-gray">
+              {isConnected ? <span className="text-pixel-green">ONLINE</span> : <span className="text-pixel-red">OFFLINE</span>}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className={`health-dot ${agents.some(a => a.status === "error") ? "bg-pixel-red" : "bg-pixel-green"}`} />
+            <span className="font-pixel text-[6px] text-pixel-gray">
+              {agents.some(a => a.status === "error")
+                ? <span className="text-pixel-red">ALERT</span>
+                : <span className="text-pixel-green">NOMINAL</span>}
+            </span>
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div className="w-px h-8 bg-pixel-border mx-1 flex-shrink-0" />
+
+        {/* Server input */}
+        <div className="flex items-center gap-2">
           <input
             value={serverInput}
             onChange={(e) => setServerInput(e.target.value)}
-            className="bg-pixel-bg border border-pixel-border font-mono text-[10px] text-pixel-cyan px-2 py-1 w-52 outline-none focus:border-pixel-cyan"
+            className="bg-pixel-bg border border-pixel-border font-mono text-[9px] text-pixel-cyan px-2 py-1.5 w-48 outline-none focus:border-pixel-cyan focus:shadow-[0_0_6px_#00ffff44] transition-shadow"
             onKeyDown={(e) => e.key === "Enter" && handleConnect()}
           />
-          <PixelButton variant={isConnected ? "ghost" : "primary"} onClick={handleConnect} className="py-1">
+          <PixelButton variant={isConnected ? "ghost" : "primary"} onClick={handleConnect} className="py-1 text-[7px]">
             {isConnected ? "RECONNECT" : "CONNECT"}
           </PixelButton>
           {offlineCount > 0 && (
             <button
               onClick={handleClearOffline}
               title={`清除 ${offlineCount} 个离线 Agent`}
-              className="font-pixel text-[7px] px-2 py-1 border border-pixel-red text-pixel-red hover:bg-pixel-red hover:text-black transition-colors ml-1"
+              className="font-pixel text-[6px] px-2 py-1.5 border border-pixel-red text-pixel-red hover:bg-pixel-red hover:text-black transition-colors"
             >
-              清除离线 ({offlineCount})
+              ✕ {offlineCount} OFFLINE
             </button>
           )}
         </div>
 
         {/* CRT Theme switcher */}
-        <div className="flex items-center gap-1 mr-2" title="CRT Theme">
+        <div className="flex items-center gap-1.5 flex-shrink-0" title="CRT Theme">
           {THEMES.map((t) => (
             <button
               key={t.id}
               onClick={() => handleTheme(t.id)}
               title={t.id.toUpperCase()}
               className={clsx(
-                "text-[16px] leading-none transition-opacity",
+                "text-[18px] leading-none transition-all",
                 t.color,
-                theme === t.id ? "opacity-100" : "opacity-30 hover:opacity-60"
+                theme === t.id ? "opacity-100 scale-110" : "opacity-25 hover:opacity-60"
               )}
             >
               {t.label}
@@ -277,7 +320,8 @@ export function Dashboard() {
           ))}
         </div>
 
-        <div className="flex gap-0 ml-auto">
+        {/* Stats */}
+        <div className="flex gap-0 ml-auto border border-pixel-border">
           <StatBox label="ONLINE" value={onlineAgents.length}     color="text-pixel-green"  />
           <StatBox label="MSGS"   value={stats.totalMessages}     color="text-pixel-cyan"   />
           <StatBox label="LINKS"  value={stats.activeLinks}       color="text-pixel-yellow" />
@@ -286,21 +330,25 @@ export function Dashboard() {
       </header>
 
       {/* ── Tabs ── */}
-      <nav className="flex border-b border-pixel-border bg-pixel-surface flex-shrink-0">
+      <nav className="flex border-b border-pixel-green/40 bg-pixel-surface flex-shrink-0">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={clsx(
-              "font-pixel text-[9px] px-6 py-2 border-r border-pixel-border transition-colors",
+              "font-pixel text-[8px] px-5 py-2 border-r border-pixel-border transition-all relative",
               activeTab === tab.id
-                ? "text-pixel-green bg-pixel-bg border-b-2 border-b-pixel-green tab-active-indicator pl-8"
-                : "text-pixel-gray hover:text-pixel-green"
+                ? "text-pixel-green bg-[#00ff4108] border-b-2 border-b-pixel-green tab-active-indicator pl-8 shadow-[inset_0_-2px_8px_#00ff4118]"
+                : "text-pixel-gray hover:text-pixel-green hover:bg-[#00ff4105]"
             )}
           >
             {tab.label}
           </button>
         ))}
+        {/* right-align system clock */}
+        <div className="ml-auto flex items-center px-4">
+          <SystemClock />
+        </div>
       </nav>
 
       {/* ── Main Content ── */}
@@ -332,16 +380,20 @@ export function Dashboard() {
       </main>
 
       {/* ── Footer ── */}
-      <footer className="flex-shrink-0 border-t border-pixel-border px-4 py-1 bg-pixel-surface flex items-center justify-between overflow-hidden">
-        <span className={`font-pixel text-[7px] ${isConnected ? "text-pixel-green" : "text-pixel-red"}`}>
-          {isConnected ? `● CONNECTED TO ${serverUrl}` : "○ DISCONNECTED"}
+      <footer className="flex-shrink-0 border-t border-pixel-green/30 px-4 py-1 bg-pixel-surface flex items-center gap-4 overflow-hidden">
+        {/* status dot + server */}
+        <span className={`font-pixel text-[6px] flex-shrink-0 flex items-center gap-1.5 ${isConnected ? "text-pixel-green" : "text-pixel-red"}`}>
+          <span className={`health-dot ${isConnected ? "bg-pixel-green animate-pulse" : "bg-pixel-red"}`} />
+          {isConnected ? serverUrl.replace(/https?:\/\//, "") : "DISCONNECTED"}
         </span>
-        <div className="flex items-center gap-3 overflow-hidden max-w-xs">
-          <span className="font-pixel text-[6px] text-pixel-gray whitespace-nowrap animate-ticker">
-            OPENCLAW PORTAL · AGENTS: {onlineAgents.length} ONLINE · MSGS: {stats.totalMessages} · XP SHARED: {stats.totalExperiences} · PIXEL OFFICE v0.1 ·
+        <div className="w-px h-3 bg-pixel-border flex-shrink-0" />
+        {/* ticker */}
+        <div className="flex-1 overflow-hidden relative">
+          <span className="font-pixel text-[5.5px] text-pixel-gray whitespace-nowrap animate-ticker inline-block">
+            〔 OPENCLAW PORTAL 〕 AGENTS: {onlineAgents.length} ONLINE ／ TOTAL: {agents.length} ／ MSGS: {stats.totalMessages} ／ LINKS: {stats.activeLinks} ／ XP: {stats.totalExperiences} ／ PIXEL OFFICE v0.1 ／ STATUS: {agents.some(a => a.status === "error") ? "⚠ ALERT" : "● NOMINAL"} ／
           </span>
         </div>
-        <span className="font-pixel text-[7px] text-pixel-green animate-blink">_</span>
+        <span className="font-pixel text-[7px] text-pixel-green animate-blink flex-shrink-0">█</span>
       </footer>
     </div>
   );
