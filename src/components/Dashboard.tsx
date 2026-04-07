@@ -32,7 +32,7 @@ function parseTags(raw: string): string[] {
 
 function StatBox({ label, value, color }: { label: string; value: number | string; color: string }) {
   return (
-    <div className="flex flex-col items-center px-4 py-2 border border-pixel-border">
+    <div className="pixel-stat-box flex flex-col items-center px-4 py-2 border border-pixel-border">
       <span className={`font-pixel text-lg ${color}`}>{value}</span>
       <span className="font-pixel text-[7px] text-pixel-gray mt-1">{label}</span>
     </div>
@@ -211,10 +211,13 @@ export function Dashboard() {
     <div className="flex flex-col h-screen bg-pixel-bg text-pixel-green overflow-hidden">
 
       {/* ── Header ── */}
-      <header className="flex items-center gap-4 px-4 py-2 border-b-2 border-pixel-green bg-pixel-surface flex-shrink-0">
+      <header className="flex items-center gap-4 px-4 py-2 border-b-2 border-pixel-green bg-pixel-surface flex-shrink-0 animate-flicker relative">
+        {/* corner accent pixels */}
+        <span className="absolute top-0 left-0 w-2 h-2 bg-pixel-green" />
+        <span className="absolute top-0 right-0 w-2 h-2 bg-pixel-green" />
         <LobsterSprite status={isConnected ? "active" : "offline"} size={32} />
         <div>
-          <h1 className="font-pixel text-[13px] text-pixel-green">OPENCLAW</h1>
+          <h1 className="font-pixel text-[13px] text-pixel-green text-glow-green">OPENCLAW</h1>
           <p className="font-pixel text-[7px] text-pixel-gray">MULTI-AGENT VISUAL MANAGER v0.1</p>
         </div>
 
@@ -275,7 +278,7 @@ export function Dashboard() {
             className={clsx(
               "font-pixel text-[9px] px-6 py-2 border-r border-pixel-border transition-colors",
               activeTab === tab.id
-                ? "text-pixel-green bg-pixel-bg border-b-2 border-b-pixel-green"
+                ? "text-pixel-green bg-pixel-bg border-b-2 border-b-pixel-green tab-active-indicator pl-8"
                 : "text-pixel-gray hover:text-pixel-green"
             )}
           >
@@ -313,11 +316,16 @@ export function Dashboard() {
       </main>
 
       {/* ── Footer ── */}
-      <footer className="flex-shrink-0 border-t border-pixel-border px-4 py-1 bg-pixel-surface flex items-center justify-between">
-        <span className="font-pixel text-[7px] text-pixel-gray">
+      <footer className="flex-shrink-0 border-t border-pixel-border px-4 py-1 bg-pixel-surface flex items-center justify-between overflow-hidden">
+        <span className={`font-pixel text-[7px] ${isConnected ? "text-pixel-green" : "text-pixel-red"}`}>
           {isConnected ? `● CONNECTED TO ${serverUrl}` : "○ DISCONNECTED"}
         </span>
-        <span className="font-pixel text-[7px] text-pixel-gray animate-blink">_</span>
+        <div className="flex items-center gap-3 overflow-hidden max-w-xs">
+          <span className="font-pixel text-[6px] text-pixel-gray whitespace-nowrap animate-ticker">
+            OPENCLAW PORTAL · AGENTS: {onlineAgents.length} ONLINE · MSGS: {stats.totalMessages} · XP SHARED: {stats.totalExperiences} · PIXEL OFFICE v0.1 ·
+          </span>
+        </div>
+        <span className="font-pixel text-[7px] text-pixel-green animate-blink">_</span>
       </footer>
     </div>
   );
