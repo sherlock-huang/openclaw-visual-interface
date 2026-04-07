@@ -352,7 +352,12 @@ export function NetworkGraph() {
     }
 
     // ── Data ──────────────────────────────────────────────────
-    const nodes: AgentNode[] = agents.map((a) => ({ ...a }));
+    // Restore last-known positions so nodes smoothly drift to new zone
+    // instead of teleporting on every redraw
+    const nodes: AgentNode[] = agents.map((a) => {
+      const saved = nodePositionsRef.current.get(a.id);
+      return { ...a, x: saved?.x ?? undefined, y: saved?.y ?? undefined };
+    });
     const resolvedLinks = links.map((l) => ({
       ...l,
       source: typeof l.source === "string" ? l.source : (l.source as AgentNode).id,
@@ -392,15 +397,13 @@ export function NetworkGraph() {
     //           > master(idle→meeting) > active+chatty→chat > idle→lounge
     function getZoneTarget(d: AgentNode): { cx: number; cy: number; str: number } | null {
       const zc = zoneCenters;
-      if (d.status === "error")   return { ...zc.debug,     str: 0.38 };
-      if (d.totalMessages < 5)    return { ...zc.lobby,     str: 0.28 };
-      if (d.status === "busy" && d.role === "master")
-                                  return { ...zc.meeting,   str: 0.22 };
-      if (d.status === "busy")    return { ...zc.workspace, str: 0.22 };
-      if (d.role === "master")    return { ...zc.meeting,   str: 0.14 };
-      if (d.status === "active" && d.totalMessages > 20)
-                                  return { ...zc.chat,      str: 0.14 };
-      if (d.status === "idle")    return { ...zc.lounge,    str: 0.18 };
+      if (d.status === "error")                           return { ...zc.debug,     str: 0.55 };
+      if (d.totalMessages < 5)                           return { ...zc.lobby,     str: 0.45 };
+      if (d.status === "busy" && d.role === "master")    return { ...zc.meeting,   str: 0.40 };
+      if (d.status === "busy")                           return { ...zc.workspace, str: 0.40 };
+      if (d.role === "master")                           return { ...zc.meeting,   str: 0.30 };
+      if (d.status === "active" && d.totalMessages > 20) return { ...zc.chat,     str: 0.28 };
+      if (d.status === "idle")                           return { ...zc.lounge,    str: 0.35 };
       return null;
     }
 
@@ -414,8 +417,14 @@ export function NetworkGraph() {
     }
 
     // ── Simulation ────────────────────────────────────────────
+    // alphaDecay lowered so zone affinity has time to visibly move nodes;
+    // alpha starts at 0.6 (not 1) since positions are already roughly correct
+    const hasExistingPositions = nodePositionsRef.current.size > 0;
     const sim = d3
       .forceSimulation<AgentNode>(nodes)
+      .alpha(hasExistingPositions ? 0.6 : 1)
+      .alphaDecay(0.018)           // default 0.0228 — slower decay = longer drift
+      .alphaMin(0.001)
       .force(
         "link",
         d3
@@ -428,7 +437,7 @@ export function NetworkGraph() {
       .force("charge", d3.forceManyBody().strength(-280))
       .force("center", d3.forceCenter(width / 2, height / 2).strength(0.04))
       .force("collision", d3.forceCollide<AgentNode>((d) => nodeHalf(d) + 14))
-      .force("cluster",  clusterForce      as unknown as d3.Force<AgentNode, AgentLink>)
+      .force("cluster",      clusterForce      as unknown as d3.Force<AgentNode, AgentLink>)
       .force("zoneAffinity", zoneAffinityForce as unknown as d3.Force<AgentNode, AgentLink>);
 
     // ── Links ─────────────────────────────────────────────────
