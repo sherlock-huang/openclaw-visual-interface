@@ -140,18 +140,24 @@ export function NetworkGraph() {
     // ── Office Zones (drawn first, behind nodes) ───────────────
     const zoneG = g.append("g").attr("class", "zones");
 
-    const zw  = width  * 0.32;
-    const zh  = height * 0.36;
-    const pad = 20;
-    const topY = 68;                   // main top zones start below Lobby
-    const botY = height / 2 + pad;
+    // Layout constants
+    const pad    = 14;
+    const lobbyW = 210, lobbyH = 58;
+    const debugW = Math.min(width * 0.68, 520), debugH = 82;
 
-    // Small Lobby strip (top-center) and Debug Corner (bottom-center)
-    const lobbyW = 162, lobbyH = 52;
-    const debugW = 144, debugH = 56;
+    // Vertical bands
+    const topY   = 10 + lobbyH + pad;          // top zones start below lobby
+    const debugY = height - debugH - 10;        // debug sits at bottom
+    const midH   = debugY - topY - pad;         // height available for 4 main zones
+    const zoneHT = Math.floor(midH * 0.54);     // top-row zone height (~54%)
+    const zoneHB = midH - zoneHT - pad;         // bottom-row zone height
+    const midY   = topY + zoneHT + pad;
+
+    // Horizontal: two wide columns
+    const zw = Math.floor((width - pad * 3) / 2);
 
     const zones = [
-      // ── special small rooms ──
+      // ── entry / special ──
       {
         id: "lobby",
         label: "LOBBY",
@@ -165,9 +171,9 @@ export function NetworkGraph() {
       },
       {
         id: "debug",
-        label: "DEBUG",
+        label: "DEBUG ZONE",
         x: width / 2 - debugW / 2,
-        y: height - debugH - 10,
+        y: debugY,
         w: debugW,
         h: debugH,
         color: "#ff2244",
@@ -176,34 +182,34 @@ export function NetworkGraph() {
       },
       // ── main 4 zones ──
       {
-        id: "workspace",
-        label: "WORKSPACE",
-        x: width / 2 + pad,
-        y: topY,
-        w: zw,
-        h: zh,
-        color: "#00ff41",
-        emoji: "💻",
-        decor: "desks",
-      },
-      {
         id: "chat",
         label: "CHAT ZONE",
-        x: width / 2 - zw - pad,
+        x: pad,
         y: topY,
         w: zw,
-        h: zh,
+        h: zoneHT,
         color: "#00ffff",
         emoji: "💬",
         decor: "bubbles",
       },
       {
+        id: "workspace",
+        label: "WORKSPACE",
+        x: pad * 2 + zw,
+        y: topY,
+        w: zw,
+        h: zoneHT,
+        color: "#00ff41",
+        emoji: "💻",
+        decor: "desks",
+      },
+      {
         id: "lounge",
         label: "LOUNGE",
-        x: width / 2 - zw - pad,
-        y: botY,
+        x: pad,
+        y: midY,
         w: zw,
-        h: zh,
+        h: zoneHB,
         color: "#ff8c00",
         emoji: "☕",
         decor: "couch",
@@ -211,10 +217,10 @@ export function NetworkGraph() {
       {
         id: "meeting",
         label: "MEETING ROOM",
-        x: width / 2 + pad,
-        y: botY,
+        x: pad * 2 + zw,
+        y: midY,
         w: zw,
-        h: zh,
+        h: zoneHB,
         color: "#cc44ff",
         emoji: "📋",
         decor: "table",
@@ -397,15 +403,21 @@ export function NetworkGraph() {
     //           > master(idle→meeting) > active+chatty→chat > idle→lounge
     function getZoneTarget(d: AgentNode): { cx: number; cy: number; str: number } | null {
       const zc = zoneCenters;
+      // Error always goes to debug first
       if (d.status === "error")                            return { ...zc.debug,     str: 0.70 };
-      // LOBBY: only brand-new agents with 0 messages (staging area)
-      if (d.totalMessages === 0)                          return { ...zc.lobby,     str: 0.55 };
-      if (d.status === "busy" && d.role === "master")     return { ...zc.meeting,   str: 0.55 };
-      if (d.status === "busy")                            return { ...zc.workspace, str: 0.55 };
-      if (d.role === "master")                            return { ...zc.meeting,   str: 0.45 };
-      if (d.status === "active" && d.totalMessages > 20) return { ...zc.chat,      str: 0.40 };
-      if (d.status === "active")                          return { ...zc.workspace, str: 0.45 };
-      if (d.status === "idle")                            return { ...zc.lounge,    str: 0.50 };
+      // Idle → lounge (sofa area) regardless of message count
+      if (d.status === "idle")                             return { ...zc.lounge,    str: 0.55 };
+      // LOBBY: active agents with literally 0 messages (just connected)
+      if (d.totalMessages === 0)                           return { ...zc.lobby,     str: 0.55 };
+      // Busy agents go to workspace or meeting by role
+      if (d.status === "busy" && d.role === "master")      return { ...zc.meeting,   str: 0.55 };
+      if (d.status === "busy")                             return { ...zc.workspace, str: 0.55 };
+      // Master role (not busy) → meeting room
+      if (d.role === "master")                             return { ...zc.meeting,   str: 0.45 };
+      // Chatty active agents → chat zone
+      if (d.status === "active" && d.totalMessages > 20)  return { ...zc.chat,      str: 0.42 };
+      // Default active → workspace
+      if (d.status === "active")                           return { ...zc.workspace, str: 0.45 };
       return null;
     }
 
