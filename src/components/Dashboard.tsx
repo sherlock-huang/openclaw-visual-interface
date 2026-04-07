@@ -11,6 +11,7 @@ import { PixelCard } from "./pixel/PixelCard";
 import { PixelButton } from "./pixel/PixelButton";
 import { StatusBadge, RoleBadge } from "./pixel/PixelBadge";
 import { LobsterSprite } from "./pixel/LobsterSprite";
+import type { LobsterMood } from "./pixel/LobsterSprite";
 import type { AgentStatus, AgentRole } from "../types";
 
 // ── Raw experience row from API ──────────────────────────────
@@ -200,6 +201,20 @@ export function Dashboard() {
   const onlineAgents = agents.filter((a) => a.status !== "offline");
   const offlineCount = agents.filter((a) => a.status === "offline").length;
 
+  // ── Lobster mood based on system state ──────────────────────
+  const lobsterMood = useMemo<LobsterMood>(() => {
+    if (!isConnected) return "normal";
+    const hasError  = agents.some((a) => a.status === "error");
+    const allIdle   = onlineAgents.length > 0 && onlineAgents.every((a) => a.status === "idle");
+    const manyOK    = onlineAgents.length >= 3 && !hasError;
+    const justJoined = onlineAgents.length === 1 && onlineAgents[0].totalMessages < 3;
+    if (hasError)   return "worried";
+    if (allIdle)    return "sleepy";
+    if (justJoined) return "waving";
+    if (manyOK)     return "happy";
+    return "normal";
+  }, [agents, onlineAgents, isConnected]);
+
   const tabs = [
     { id: "graph",      label: "NETWORK"  },
     { id: "agents",     label: "AGENTS"   },
@@ -215,7 +230,7 @@ export function Dashboard() {
         {/* corner accent pixels */}
         <span className="absolute top-0 left-0 w-2 h-2 bg-pixel-green" />
         <span className="absolute top-0 right-0 w-2 h-2 bg-pixel-green" />
-        <LobsterSprite status={isConnected ? "active" : "offline"} size={32} />
+        <LobsterSprite status={isConnected ? "active" : "offline"} mood={lobsterMood} size={32} />
         <div>
           <h1 className="font-pixel text-[13px] text-pixel-green text-glow-green">OPENCLAW</h1>
           <p className="font-pixel text-[7px] text-pixel-gray">MULTI-AGENT VISUAL MANAGER v0.1</p>

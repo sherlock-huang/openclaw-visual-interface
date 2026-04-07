@@ -3,7 +3,8 @@
 import { clsx } from "clsx";
 import type { AgentStatus } from "../../types";
 
-// 像素龙虾 ASCII art / CSS sprite
+export type LobsterMood = "normal" | "happy" | "worried" | "sleepy" | "waving";
+
 const statusGlow: Record<AgentStatus, string> = {
   active:  "drop-shadow-[0_0_6px_#00ff41]",
   idle:    "drop-shadow-[0_0_6px_#ffff00]",
@@ -22,13 +23,18 @@ const statusColor: Record<AgentStatus, string> = {
 
 interface LobsterSpriteProps {
   status: AgentStatus;
+  mood?: LobsterMood;
   size?: number;
   className?: string;
 }
 
-// SVG像素龙虾
-export function LobsterSprite({ status, size = 48, className }: LobsterSpriteProps) {
+export function LobsterSprite({ status, mood = "normal", size = 48, className }: LobsterSpriteProps) {
   const color = statusColor[status];
+  const isSleepy  = mood === "sleepy";
+  const isHappy   = mood === "happy";
+  const isWorried = mood === "worried";
+  const isWaving  = mood === "waving";
+
   return (
     <svg
       width={size}
@@ -48,19 +54,68 @@ export function LobsterSprite({ status, size = 48, className }: LobsterSpritePro
       <rect x="4" y="1" width="1" height="2" fill={color} />
       <rect x="10" y="2" width="1" height="2" fill={color} />
       <rect x="11" y="1" width="1" height="2" fill={color} />
-      {/* 眼睛 */}
-      <rect x="6" y="4" width="1" height="1" fill="#000" />
-      <rect x="9" y="4" width="1" height="1" fill="#000" />
-      {/* 大钳子 - 左 */}
-      <rect x="2" y="5" width="3" height="2" fill={color} />
-      <rect x="1" y="4" width="2" height="1" fill={color} />
-      <rect x="1" y="7" width="2" height="1" fill={color} />
-      {/* 大钳子 - 右 */}
+
+      {/* ── 眼睛（mood-aware）─────────────────── */}
+      {isSleepy ? (
+        /* 睡眼：细横条 */
+        <>
+          <rect x="6" y="4" width="1" height="1" fill="#000" opacity="0.5" />
+          <rect x="9" y="4" width="1" height="1" fill="#000" opacity="0.5" />
+          {/* ZZZ */}
+          <rect x="7" y="2" width="1" height="1" fill={color} opacity="0.6" />
+          <rect x="8" y="1" width="1" height="1" fill={color} opacity="0.4" />
+        </>
+      ) : isHappy ? (
+        /* 开心：眼睛 + 上扬嘴角 */
+        <>
+          <rect x="6" y="4" width="1" height="1" fill="#000" />
+          <rect x="9" y="4" width="1" height="1" fill="#000" />
+          {/* 笑容：两侧各一像素 */}
+          <rect x="6" y="5" width="1" height="1" fill="rgba(0,0,0,0.5)" />
+          <rect x="9" y="5" width="1" height="1" fill="rgba(0,0,0,0.5)" />
+        </>
+      ) : isWorried ? (
+        /* 担心：眼睛 + 倒八字眉 */
+        <>
+          <rect x="6" y="4" width="1" height="1" fill="#000" />
+          <rect x="9" y="4" width="1" height="1" fill="#000" />
+          {/* 内高外低的忧愁眉 */}
+          <rect x="6" y="3" width="1" height="1" fill={color} opacity="0.8" />
+          <rect x="9" y="3" width="1" height="1" fill={color} opacity="0.8" />
+          <rect x="7" y="2" width="1" height="1" fill={color} opacity="0.6" />
+          <rect x="8" y="2" width="1" height="1" fill={color} opacity="0.6" />
+        </>
+      ) : (
+        /* 默认 / waving */
+        <>
+          <rect x="6" y="4" width="1" height="1" fill="#000" />
+          <rect x="9" y="4" width="1" height="1" fill="#000" />
+        </>
+      )}
+
+      {/* ── 大钳子（mood-aware）───────────────── */}
+      {isWaving ? (
+        /* 左钳举起挥手 */
+        <>
+          <rect x="2" y="1" width="2" height="2" fill={color} />
+          <rect x="1" y="0" width="2" height="1" fill={color} />
+          <rect x="3" y="0" width="2" height="1" fill={color} />
+        </>
+      ) : (
+        /* 正常左钳 */
+        <>
+          <rect x="2" y="5" width="3" height="2" fill={color} />
+          <rect x="1" y="4" width="2" height="1" fill={color} />
+          <rect x="1" y="7" width="2" height="1" fill={color} />
+        </>
+      )}
+      {/* 右钳（始终正常） */}
       <rect x="11" y="5" width="3" height="2" fill={color} />
       <rect x="13" y="4" width="2" height="1" fill={color} />
       <rect x="13" y="7" width="2" height="1" fill={color} />
+
       {/* 腿 */}
-      <rect x="4" y="9" width="1" height="3" fill={color} />
+      <rect x="4" y="9"  width="1" height="3" fill={color} />
       <rect x="6" y="10" width="1" height="3" fill={color} />
       <rect x="9" y="10" width="1" height="3" fill={color} />
       <rect x="11" y="9" width="1" height="3" fill={color} />
