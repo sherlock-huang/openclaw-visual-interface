@@ -448,8 +448,34 @@ export function NetworkGraph() {
       !selectedAgentId || neighborIds.has(d.id) ? 1 : 0.2
     );
 
-    // Selection ring
-    nodeG
+    // ── Inner float wrapper (all visuals live here, rAF drives Y-bob) ──
+    const floatG = nodeG.append("g").attr("class", "float");
+
+    // ── Busy pulse ring (on nodeG, outside float so it doesn't bob) ────
+    const pulseRing = nodeG
+      .filter((d) => d.status === "busy")
+      .append("circle")
+      .attr("class", "pulse-ring")
+      .attr("fill", "none")
+      .attr("stroke", (d) => STATUS_COLOR[d.status])
+      .attr("stroke-width", 1.5);
+
+    // ── Error flash border (on nodeG) ────────────────────────────────
+    const errorFlash = nodeG
+      .filter((d) => d.status === "error")
+      .append("rect")
+      .attr("class", "error-flash")
+      .attr("x", (d) => -nodeHalf(d) - 5)
+      .attr("y", (d) => -nodeHalf(d) - 5)
+      .attr("width",  (d) => nodeHalf(d) * 2 + 10)
+      .attr("height", (d) => nodeHalf(d) * 2 + 10)
+      .attr("fill", "none")
+      .attr("stroke", "#ff2244")
+      .attr("stroke-width", 2)
+      .attr("rx", 1);
+
+    // Selection ring (inside float)
+    floatG
       .append("circle")
       .attr("r", (d) => nodeHalf(d) + 12)
       .attr("fill", "none")
@@ -457,20 +483,20 @@ export function NetworkGraph() {
       .attr("stroke-width", 2)
       .attr("stroke-dasharray", "4 2");
 
-    // Node body (pixel square, size reflects message activity)
-    nodeG
+    // Node body
+    floatG
       .append("rect")
       .attr("x", (d) => -nodeHalf(d))
       .attr("y", (d) => -nodeHalf(d))
-      .attr("width", (d) => nodeHalf(d) * 2)
+      .attr("width",  (d) => nodeHalf(d) * 2)
       .attr("height", (d) => nodeHalf(d) * 2)
-      .attr("fill", (d) => STATUS_COLOR[d.status] + "22")
+      .attr("fill",   (d) => STATUS_COLOR[d.status] + "22")
       .attr("stroke", (d) => STATUS_COLOR[d.status])
       .attr("stroke-width", 2)
       .attr("filter", "url(#glow)");
 
     // Platform icon
-    nodeG
+    floatG
       .append("text")
       .attr("text-anchor", "middle")
       .attr("dominant-baseline", "central")
@@ -478,15 +504,15 @@ export function NetworkGraph() {
       .text((d) => PLATFORM_ICON[d.platform] ?? "🦞");
 
     // Status dot (top-right corner)
-    nodeG
+    floatG
       .append("circle")
-      .attr("cx", (d) => nodeHalf(d) - 4)
+      .attr("cx", (d) =>  nodeHalf(d) - 4)
       .attr("cy", (d) => -(nodeHalf(d) - 4))
       .attr("r", 5)
       .attr("fill", (d) => STATUS_COLOR[d.status]);
 
     // Agent name label
-    nodeG
+    floatG
       .append("text")
       .attr("y", (d) => nodeHalf(d) + 12)
       .attr("text-anchor", "middle")
@@ -495,8 +521,8 @@ export function NetworkGraph() {
       .attr("fill", "#aaaacc")
       .text((d) => (d.name.length > 10 ? d.name.slice(0, 9) + "…" : d.name));
 
-    // Host label (small, below name)
-    nodeG
+    // Host label
+    floatG
       .append("text")
       .attr("y", (d) => nodeHalf(d) + 23)
       .attr("text-anchor", "middle")
@@ -504,6 +530,36 @@ export function NetworkGraph() {
       .attr("font-size", "6px")
       .attr("fill", "#444466")
       .text((d) => d.host.length > 14 ? d.host.slice(0, 13) + "…" : d.host);
+
+    // ── Speech bubble (active nodes with messages) ────────────────────
+    const bubbleG = floatG
+      .filter((d) => d.status === "active" && d.totalMessages > 0)
+      .append("g")
+      .attr("class", "bubble");
+
+    bubbleG.each(function(this: SVGGElement, d: AgentNode) {
+      const by = -nodeHalf(d) - 22;
+      const bg = d3.select(this);
+      // bubble body
+      bg.append("rect")
+        .attr("x", -14).attr("y", by)
+        .attr("width", 28).attr("height", 14)
+        .attr("rx", 3)
+        .attr("fill", "#001a00").attr("stroke", "#00ff4166").attr("stroke-width", 1);
+      // tail
+      bg.append("rect")
+        .attr("x", -3).attr("y", by + 14)
+        .attr("width", 4).attr("height", 4)
+        .attr("fill", "#00ff4166");
+      // dots text (updated by rAF)
+      bg.append("text")
+        .attr("class", "bubble-dots")
+        .attr("x", 0).attr("y", by + 9)
+        .attr("text-anchor", "middle")
+        .attr("font-family", '"Press Start 2P", monospace')
+        .attr("font-size", "6px")
+        .attr("fill", "#00ff41");
+    });
 
     // ── Tick ─────────────────────────────────────────────────
     sim.on("tick", () => {
@@ -516,12 +572,15 @@ export function NetworkGraph() {
       nodeG.attr("transform", (d) => `translate(${d.x ?? 0},${d.y ?? 0})`);
     });
 
-    // ── Particle animation (rAF loop with cleanup guard) ──────
+    // ── Unified rAF animation loop ────────────────────────────
     let running = true;
+    const DOT_FRAMES = [".", "..", "..."];
 
-    function animateParticles() {
+    function animateAll() {
       if (!running) return;
       const now = Date.now();
+
+      // 1. Flow particles along links
       flowDots.each(function (this: SVGCircleElement, p: Particle) {
         const src = (p.link as unknown as { source: AgentNode }).source;
         const tgt = (p.link as unknown as { target: AgentNode }).target;
@@ -531,9 +590,38 @@ export function NetworkGraph() {
           .attr("cx", (src.x ?? 0) + ((tgt.x ?? 0) - (src.x ?? 0)) * t)
           .attr("cy", (src.y ?? 0) + ((tgt.y ?? 0) - (src.y ?? 0)) * t);
       });
-      requestAnimationFrame(animateParticles);
+
+      // 2. Float bob (idle: slow+large, busy: fast+tiny, others: medium)
+      floatG.each(function (this: SVGGElement, d: AgentNode) {
+        const amp    = d.status === "idle" ? 4.5 : d.status === "busy" ? 1.2 : 2.5;
+        const period = d.status === "idle" ? 2800 : d.status === "busy" ? 700  : 1800;
+        const phase  = (d.index ?? 0) * 1.1;  // per-node phase offset
+        const dy = Math.sin((now / period) * Math.PI * 2 + phase) * amp;
+        d3.select(this).attr("transform", `translate(0,${dy})`);
+      });
+
+      // 3. Busy pulse ring: expands + fades outward, loops every 1.2s
+      pulseRing.each(function (this: SVGCircleElement, d: AgentNode) {
+        const t = (now % 1200) / 1200;
+        const r  = nodeHalf(d) + 14 + t * 14;
+        const op = (1 - t) * 0.65;
+        d3.select(this).attr("r", r).attr("opacity", op);
+      });
+
+      // 4. Error flash border: rapid strobe at ~5 Hz
+      errorFlash.each(function (this: SVGRectElement) {
+        const op = 0.35 + Math.abs(Math.sin(now / 100)) * 0.65;
+        d3.select(this).attr("stroke-opacity", op);
+      });
+
+      // 5. Speech bubble dot cycling (changes every 400ms)
+      const dotFrame = DOT_FRAMES[Math.floor(now / 400) % DOT_FRAMES.length];
+      g.selectAll<SVGTextElement, AgentNode>("text.bubble-dots")
+        .text(dotFrame);
+
+      requestAnimationFrame(animateAll);
     }
-    animateParticles();
+    animateAll();
 
     return () => {
       running = false;
