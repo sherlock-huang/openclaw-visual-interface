@@ -610,34 +610,64 @@ export function NetworkGraph() {
       .attr("fill", "#444466")
       .text((d) => d.host.length > 14 ? d.host.slice(0, 13) + "…" : d.host);
 
-    // ── Speech bubble (active nodes with messages) ────────────────────
-    const bubbleG = floatG
-      .filter((d) => d.status === "active" && d.totalMessages > 0)
-      .append("g")
-      .attr("class", "bubble");
+    // ── Status-aware speech bubbles (U6) ─────────────────────
+    type BubbleCfg = {
+      label: string; color: string; bg: string;
+      w: number; dotsClass: string | null;
+    };
+    function getBubbleCfg(d: AgentNode): BubbleCfg | null {
+      if (d.status === "offline") return null;
+      if (d.status === "error")
+        return { label: "⚠ 出错了！", color: "#ff2244", bg: "#1a0005", w: 56, dotsClass: null };
+      if (d.totalMessages < 5)
+        return { label: "你好！",    color: "#88aaff", bg: "#00051a", w: 36, dotsClass: null };
+      if (d.role === "master")
+        return { label: "协调中",   color: "#cc44ff", bg: "#0d001a", w: 44, dotsClass: "bd-master" };
+      if (d.status === "busy")
+        return { label: "处理中",   color: "#ff8c00", bg: "#1a0a00", w: 44, dotsClass: "bd-busy" };
+      if (d.status === "idle")
+        return { label: "空闲中",   color: "#ffff00", bg: "#1a1a00", w: 44, dotsClass: "bd-idle" };
+      if (d.status === "active" && d.totalMessages > 0)
+        return { label: "聊天中",   color: "#00ffff", bg: "#001a1a", w: 44, dotsClass: "bd-chat" };
+      return null;
+    }
 
-    bubbleG.each(function(this: SVGGElement, d: AgentNode) {
-      const by = -nodeHalf(d) - 22;
-      const bg = d3.select(this);
-      // bubble body
+    floatG.each(function (this: SVGGElement, d: AgentNode) {
+      const cfg = getBubbleCfg(d);
+      if (!cfg) return;
+      const by = -nodeHalf(d) - 24;
+      const bg = d3.select(this).append("g").attr("class", "bubble");
+      const h = 16;
+      // body
       bg.append("rect")
-        .attr("x", -14).attr("y", by)
-        .attr("width", 28).attr("height", 14)
-        .attr("rx", 3)
-        .attr("fill", "#001a00").attr("stroke", "#00ff4166").attr("stroke-width", 1);
-      // tail
+        .attr("x", -cfg.w / 2).attr("y", by)
+        .attr("width", cfg.w).attr("height", h).attr("rx", 2)
+        .attr("fill", cfg.bg)
+        .attr("stroke", cfg.color + "88").attr("stroke-width", 1);
+      // pixel tail
       bg.append("rect")
-        .attr("x", -3).attr("y", by + 14)
+        .attr("x", -3).attr("y", by + h)
         .attr("width", 4).attr("height", 4)
-        .attr("fill", "#00ff4166");
-      // dots text (updated by rAF)
+        .attr("fill", cfg.color + "88");
+      // static label
       bg.append("text")
-        .attr("class", "bubble-dots")
-        .attr("x", 0).attr("y", by + 9)
-        .attr("text-anchor", "middle")
-        .attr("font-family", '"Press Start 2P", monospace')
-        .attr("font-size", "6px")
-        .attr("fill", "#00ff41");
+        .attr("x", cfg.dotsClass ? -cfg.w / 2 + 5 : 0)
+        .attr("y", by + 10)
+        .attr("text-anchor", cfg.dotsClass ? "start" : "middle")
+        .attr("font-family", '"Courier New", monospace')
+        .attr("font-size", "7px")
+        .attr("fill", cfg.color)
+        .text(cfg.label);
+      // animated dots (right-aligned inside bubble)
+      if (cfg.dotsClass) {
+        bg.append("text")
+          .attr("class", cfg.dotsClass)
+          .attr("x", cfg.w / 2 - 4).attr("y", by + 10)
+          .attr("text-anchor", "end")
+          .attr("font-family", '"Press Start 2P", monospace')
+          .attr("font-size", "5px")
+          .attr("fill", cfg.color + "cc");
+      }
     });
 
     // ── Tick ─────────────────────────────────────────────────
@@ -656,6 +686,13 @@ export function NetworkGraph() {
     // ── Unified rAF animation loop ────────────────────────────
     let running = true;
     const DOT_FRAMES = [".", "..", "..."];
+    // Per-class dot speeds (ms per frame)
+    const DOT_CLASSES: Array<{ cls: string; speed: number }> = [
+      { cls: "bd-idle",   speed: 800 },
+      { cls: "bd-busy",   speed: 220 },
+      { cls: "bd-master", speed: 600 },
+      { cls: "bd-chat",   speed: 320 },
+    ];
 
     function animateAll() {
       if (!running) return;
@@ -695,10 +732,11 @@ export function NetworkGraph() {
         d3.select(this).attr("stroke-opacity", op);
       });
 
-      // 5. Speech bubble dot cycling (changes every 400ms)
-      const dotFrame = DOT_FRAMES[Math.floor(now / 400) % DOT_FRAMES.length];
-      g.selectAll<SVGTextElement, AgentNode>("text.bubble-dots")
-        .text(dotFrame);
+      // 5. Speech bubble dots — each class at its own speed
+      for (const dc of DOT_CLASSES) {
+        const frame = Math.floor(now / dc.speed) % DOT_FRAMES.length;
+        g.selectAll<SVGTextElement, unknown>(`text.${dc.cls}`).text(DOT_FRAMES[frame]);
+      }
 
       requestAnimationFrame(animateAll);
     }
