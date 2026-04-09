@@ -337,6 +337,81 @@ async function handleMessage(msg) {
 
 ---
 
+## 八-2、像素风格美化（commit 304350f）
+
+> 时间：2026-04-09 | commit: `304350f` | 新增代码：648 行
+
+本次美化大幅增强了全局视觉效果，所有新增效果均支持 CRT 主题切换（green/amber/blue）。
+
+### globals.css 新增效果
+
+| 效果名 | 描述 |
+|--------|------|
+| `pixel-noise-overlay` | 动态噪点/静电干扰叠加层（8秒循环，steps(1) 逐帧） |
+| `pixel-hex-bg` | 六边形背景图案漂浮动画（6秒 ease-in-out，旋转+上下浮动） |
+| `pixel-card-enhanced` | 增强卡片：顶部渐变流光线 + 扫描线叠加 + 悬停上浮+阴影扩散 |
+| `corner-brackets` | 统计框角落闪烁括号装饰（2秒呼吸动画） |
+| `tab-shimmer` | 悬停时流光从左扫过效果（3秒循环，60%宽光条） |
+| `stat-bar-pulse` | 统计数值呼吸脉冲动画（2秒） |
+| `glitch-text` | 文字抖动效果（hover 时触发） |
+| `neon-text` | 多层霓虹发光（4层 shadow） |
+| `shadow-pixel` | 3D 像素按钮阴影（按下时上移1px） |
+| `panel-glow` | 内发光 + 外发光的面板效果 |
+| `badge-glow` | 徽章发光阴影 |
+| `ambient-pixels` | 环境漂浮像素点（6个 radial-gradient） |
+| `hex-float` | 六边形背景元素浮动动画 |
+| `corner-tl/tr/bl/br` | 头部角落像素装饰（::before/::after 伪元素） |
+| `header-gradient-line` | 顶部渐变线条动画（border-pulse 3秒） |
+| `pixel-ripple` | 悬停时径向渐变涟漪 |
+| `animate-flicker` | CRT 闪烁（10秒周期，模拟老显示器） |
+| `animate-neon-green/cyan/red` | 霓虹脉冲（2.4秒/1.4秒周期） |
+| `animate-float` | 浮动动画（3秒上下） |
+
+### Dashboard.tsx 增强
+
+- **顶部渐变线条**：`header-gradient-line` 类，2px 高，绿色渐变，呼吸动画
+- **Logo 区**：ASCII 艺术框（`┌──────────────┐` / `└────────────────┘`），glitch 文字效果，角落装饰像素
+- **统计框**：`pixel-stat-box` 类，悬停流光扫过 + 角落闪烁像素 + 阴影扩散 + 上浮1px
+- **Tab 栏**：`tab-active-indicator` 左侧 ▶ 图标 + 底部渐变高光线 + 悬停图标呼吸动画
+- **Footer**：加载动画方块（`loading-chunk` 三块交错 200ms）+ 左右渐变遮罩 + ticker 文字滚动
+
+### PixelCard 增强
+
+- **顶部霓虹流光**：颜色随 `glowColor` 变化（绿/青/红/紫/橙），8px 发光
+- **角落像素装饰**：更大更明显（2.5px / 2px），悬停亮度提升
+- **内层虚线边框**：`border-dashed border-white/5` 装饰框架
+- **悬停效果**：`brightness(110%)` + 卡片上浮 + 阴影扩散
+
+### PixelButton 增强
+
+- **4px 像素角装饰**（::before/::after）：白色高光左上 + 黑色阴影右下
+- **新增 purple 变体**：`bg-[#cc44ff] text-black`
+- **glow 属性**：支持发光 box-shadow
+
+### PixelBadge 增强
+
+- **glow 属性**：`shadow-[0_0_8px_currentColor]` 霓虹发光边框
+- **StatusBadge**：状态点增加 `|` 竖线分隔符
+- **RoleBadge**：增加 ◆ 菱形图标装饰
+
+### AgentCard 增强
+
+- **左侧状态条**：`1px → 1.5px` 加宽
+- **扫描线动画**：悬停时 `scan-beam-fast`（2秒 linear infinite）从下往上扫过
+- **角落像素悬停变色**：`bg-pixel-border → bg-pixel-green`
+
+### MessageFeed 增强
+
+- 消息行 hover 时 `bg-pixel-surface` 背景高亮
+
+### CRT 主题切换
+
+- green（默认）、amber（色相旋转-90°）、blue（色相旋转+100°）三档
+- 切换时 `document.documentElement.setAttribute('data-theme', t)`
+- 主题保存至 `localStorage`
+
+---
+
 ## 九、已知问题 & 待办
 
 ### 待确认的服务端行为
