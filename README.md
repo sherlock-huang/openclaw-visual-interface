@@ -338,6 +338,34 @@ openclaw-visual-interface/
 
 ---
 
+## 贡献与反馈
+
+如果你觉得这个项目对你有帮助，欢迎：
+
+- **Star** ⭐ — 随手点亮，让更多人看到
+- **分享** 📢 — 介绍给需要的朋友
+- **改进** 💡 — 提交 Issue 或 Pull Request
+
+发现任何问题或有改进建议，欢迎到 [GitHub Issues](https://github.com/sherlock-huang/openclaw-visual-interface/issues) 反馈。
+
+---
+
+## 相关链接
+
+| 链接 | 地址 |
+|------|------|
+| 主体博客 | [https://kunpeng-ai.com](https://kunpeng-ai.com) |
+| GitHub Organization | [https://github.com/kunpeng-ai-research](https://github.com/kunpeng-ai-research) |
+| OpenClaw 官网 | [https://openclaw.ai](https://openclaw.ai) |
+
+---
+
+## 维护与署名
+
+**鲲鹏AI探索局** 是本项目的主要维护者。
+
+---
+
 ## License
 
 MIT
