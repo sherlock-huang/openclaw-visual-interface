@@ -57,7 +57,7 @@ export function AgentCard({ agent }: AgentCardProps) {
     <div
       onClick={() => selectAgent(isSelected ? null : agent.id)}
       className={clsx(
-        "relative border cursor-pointer group transition-all duration-150",
+        "relative border cursor-pointer group transition-all duration-150 pixel-card-enhanced",
         "bg-pixel-surface overflow-hidden",
         isSelected
           ? "border-pixel-cyan shadow-[0_0_10px_#00ffff55,inset_0_0_10px_#00ffff08]"
@@ -67,14 +67,26 @@ export function AgentCard({ agent }: AgentCardProps) {
     >
       {/* Status stripe — left edge */}
       <div className={clsx(
-        "absolute left-0 top-0 bottom-0 w-1",
+        "absolute left-0 top-0 bottom-0 w-1.5",
         statusStripe[agent.status]
       )} />
 
-      {/* Corner pixel */}
-      <span className="absolute top-0 right-0 w-2 h-2 bg-pixel-border opacity-60 group-hover:bg-pixel-green group-hover:opacity-100 transition-colors" />
+      {/* Animated corner pixels */}
+      <span className="absolute top-0 right-0 w-2.5 h-2.5 bg-pixel-border opacity-60 group-hover:bg-pixel-green group-hover:opacity-100 transition-all" />
+      <span className="absolute bottom-0 left-0 w-1.5 h-1.5 bg-pixel-border opacity-30 group-hover:bg-pixel-green group-hover:opacity-60 transition-all" />
 
-      <div className="pl-3 pr-3 pt-3 pb-2">
+      {/* Top glow line */}
+      <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-current to-transparent opacity-20" />
+
+      <div className="pl-4 pr-3 pt-3 pb-2 relative">
+        {/* Scan line overlay on hover */}
+        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-b from-pixel-green/5 to-transparent" />
+          <div
+            className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-pixel-green/20 to-transparent"
+            style={{ top: "-4px", animation: "scan-beam-fast 2s linear infinite" }}
+          />
+        </div>
         {/* Top row: sprite + name + platform */}
         <div className="flex items-start gap-2 mb-2">
           <div className={clsx(

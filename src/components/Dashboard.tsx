@@ -33,9 +33,11 @@ function parseTags(raw: string): string[] {
 
 function StatBox({ label, value, color }: { label: string; value: number | string; color: string }) {
   return (
-    <div className="pixel-stat-box flex flex-col items-center px-4 py-2 border border-pixel-border relative overflow-hidden">
-      <span className={`font-pixel text-base leading-none ${color} text-glow-green`}>{value}</span>
-      <span className="font-pixel text-[6px] text-pixel-gray mt-1.5 tracking-wider">{label}</span>
+    <div className="pixel-stat-box flex flex-col items-center px-4 py-2 border border-pixel-border relative overflow-hidden corner-brackets">
+      <span className={`font-pixel text-base leading-none ${color} stat-value`}>{value}</span>
+      <span className="font-pixel text-[6px] text-pixel-gray mt-1.5 tracking-widest">{label}</span>
+      {/* Animated corner pixels */}
+      <span className="absolute top-0 right-0 w-1 h-1 bg-pixel-green opacity-60 animate-blink" />
     </div>
   );
 }
@@ -237,23 +239,38 @@ export function Dashboard() {
   ] as const;
 
   return (
-    <div className="flex flex-col h-screen bg-pixel-bg text-pixel-green overflow-hidden pixel-grid-bg">
+    <div className="flex flex-col h-screen bg-pixel-bg text-pixel-green overflow-hidden pixel-grid-bg pixel-hex-bg">
+
+      {/* ── Animated top border line ── */}
+      <div className="header-gradient-line flex-shrink-0" />
 
       {/* ── Header ── */}
-      <header className="flex items-center gap-3 px-4 py-2 border-b-2 border-pixel-green bg-pixel-surface flex-shrink-0 animate-flicker relative">
-        {/* corner accent pixels */}
-        <span className="absolute top-0 left-0 w-3 h-3 bg-pixel-green opacity-90" />
-        <span className="absolute top-0 right-0 w-3 h-3 bg-pixel-green opacity-90" />
-        <span className="absolute bottom-0 left-0 w-1.5 h-1.5 bg-pixel-green opacity-40" />
-        <span className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-pixel-green opacity-40" />
+      <header className="flex items-center gap-3 px-4 py-2 border-b-2 border-pixel-green bg-pixel-surface flex-shrink-0 animate-flicker relative panel-glow">
+        {/* corner accent pixels - enhanced */}
+        <span className="absolute top-0 left-0 w-3 h-3 bg-pixel-green opacity-90 corner-tl" />
+        <span className="absolute top-0 right-0 w-3 h-3 bg-pixel-green opacity-90 corner-tr" />
+        <span className="absolute bottom-0 left-0 w-1.5 h-1.5 bg-pixel-green opacity-40 corner-bl" />
+        <span className="absolute bottom-0 right-0 w-1.5 h-1.5 bg-pixel-green opacity-40 corner-br" />
+
+        {/* Animated data stream bar on left */}
+        <div className="w-1 h-10 bg-gradient-to-b from-pixel-green via-pixel-cyan to-pixel-purple opacity-40 flex-shrink-0 animate-blink" />
 
         {/* Logo block */}
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <LobsterSprite status={isConnected ? "active" : "offline"} mood={lobsterMood} size={36} />
-          <div>
-            <h1 className="font-pixel text-[14px] text-pixel-green text-glow-green leading-none mb-1">OPENCLAW</h1>
-            <p className="font-pixel text-[5.5px] text-pixel-gray tracking-widest">MULTI-AGENT VISUAL MANAGER v0.1</p>
+        <div className="flex items-center gap-3 flex-shrink-0 relative">
+          <LobsterSprite status={isConnected ? "active" : "offline"} mood={lobsterMood} size={36} className="animate-float" />
+          <div className="relative">
+            {/* ASCII art style header */}
+            <div className="text-[6px] text-pixel-green opacity-40 font-mono mb-0.5">┌──────────────┐</div>
+            <h1 className="font-pixel text-[14px] text-pixel-green neon-text leading-none mb-1 tracking-wider">
+              <span className="glitch-text">OPENCLAW</span>
+            </h1>
+            <div className="text-[6px] text-pixel-green opacity-40 font-mono">└────────────────┘</div>
+            <p className="font-pixel text-[5.5px] text-pixel-gray tracking-widest mt-1">
+              <span className="text-pixel-cyan">◈</span> MULTI-AGENT VISUAL MANAGER <span className="text-pixel-cyan">◈</span> v0.1
+            </p>
           </div>
+          {/* Decorative pixel cluster */}
+          <div className="absolute -right-1 top-1/2 -translate-y-1/2 w-2 h-6 bg-gradient-to-b from-pixel-green via-transparent to-pixel-purple opacity-20" />
         </div>
 
         {/* Divider */}
@@ -336,13 +353,17 @@ export function Dashboard() {
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
             className={clsx(
-              "font-pixel text-[8px] px-5 py-2 border-r border-pixel-border transition-all relative",
+              "font-pixel text-[8px] px-5 py-2 border-r border-pixel-border transition-all relative pixel-ripple tab-hover-effect",
               activeTab === tab.id
                 ? "text-pixel-green bg-[#00ff4108] border-b-2 border-b-pixel-green tab-active-indicator pl-8 shadow-[inset_0_-2px_8px_#00ff4118]"
-                : "text-pixel-gray hover:text-pixel-green hover:bg-[#00ff4105]"
+                : "text-pixel-gray hover:text-pixel-green hover:bg-[#00ff4105] hover:shadow-[inset_0_-2px_8px_#00ff4105]"
             )}
           >
+            <span className="tab-icon mr-1.5">{activeTab === tab.id ? "▸" : "·"}</span>
             {tab.label}
+            {activeTab === tab.id && (
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-pixel-green to-transparent opacity-60" />
+            )}
           </button>
         ))}
         {/* right-align system clock */}
@@ -380,20 +401,35 @@ export function Dashboard() {
       </main>
 
       {/* ── Footer ── */}
-      <footer className="flex-shrink-0 border-t border-pixel-green/30 px-4 py-1 bg-pixel-surface flex items-center gap-4 overflow-hidden">
+      <footer className="flex-shrink-0 border-t border-pixel-green/30 px-4 py-1 bg-pixel-surface flex items-center gap-4 overflow-hidden relative">
+        {/* Animated bottom line */}
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-pixel-green/40 to-transparent" />
+
         {/* status dot + server */}
         <span className={`font-pixel text-[6px] flex-shrink-0 flex items-center gap-1.5 ${isConnected ? "text-pixel-green" : "text-pixel-red"}`}>
           <span className={`health-dot ${isConnected ? "bg-pixel-green animate-pulse" : "bg-pixel-red"}`} />
           {isConnected ? serverUrl.replace(/https?:\/\//, "") : "DISCONNECTED"}
         </span>
         <div className="w-px h-3 bg-pixel-border flex-shrink-0" />
+
+        {/* Loading indicator chunks */}
+        <div className="flex gap-0.5 items-center flex-shrink-0">
+          <span className="loading-chunk font-pixel text-[8px] text-pixel-green">█</span>
+          <span className="loading-chunk font-pixel text-[8px] text-pixel-green">█</span>
+          <span className="loading-chunk font-pixel text-[8px] text-pixel-green">█</span>
+        </div>
+
         {/* ticker */}
         <div className="flex-1 overflow-hidden relative">
+          <div className="absolute left-0 top-0 bottom-0 w-8 bg-gradient-to-r from-pixel-surface to-transparent z-10" />
+          <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-pixel-surface to-transparent z-10" />
           <span className="font-pixel text-[5.5px] text-pixel-gray whitespace-nowrap animate-ticker inline-block">
-            〔 OPENCLAW PORTAL 〕 AGENTS: {onlineAgents.length} ONLINE ／ TOTAL: {agents.length} ／ MSGS: {stats.totalMessages} ／ LINKS: {stats.activeLinks} ／ XP: {stats.totalExperiences} ／ PIXEL OFFICE v0.1 ／ STATUS: {agents.some(a => a.status === "error") ? "⚠ ALERT" : "● NOMINAL"} ／
+            ▌ 〔 OPENCLAW PORTAL 〕 AGENTS: <span className="text-pixel-green">{onlineAgents.length}</span> ONLINE ／ TOTAL: <span className="text-pixel-cyan">{agents.length}</span> ／ MSGS: <span className="text-pixel-yellow">{stats.totalMessages}</span> ／ LINKS: <span className="text-pixel-orange">{stats.activeLinks}</span> ／ XP: <span className="text-pixel-purple">{stats.totalExperiences}</span> ／ PIXEL OFFICE v0.1 ／ STATUS: {agents.some(a => a.status === "error") ? <span className="text-pixel-red">⚠ ALERT</span> : <span className="text-pixel-green">● NOMINAL</span>} ／ ▐
           </span>
         </div>
-        <span className="font-pixel text-[7px] text-pixel-green animate-blink flex-shrink-0">█</span>
+
+        {/* Terminal cursor */}
+        <span className="font-pixel text-[7px] text-pixel-green animate-blink flex-shrink-0 cursor-blink">█</span>
       </footer>
     </div>
   );
